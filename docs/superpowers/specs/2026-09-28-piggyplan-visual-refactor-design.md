@@ -122,8 +122,8 @@ class PiggyPlanApp(ArchivePageMixin, SettingsPageMixin, GoalsPageMixin,
 ### 3.4 间距与圆角
 
 - 间距（4 为基）：`4 8 12 16 24 32 48`
-- 圆角：`chip 4 · 控件 10 · 卡片 14 · 胶囊 22`
-- 自绘假抗锯齿的外圈两环各占 1px，故最小可用半径为 6。
+- 圆角：`chip 6 · 控件 10 · 卡片 14 · 胶囊 22`
+- 自绘假抗锯齿的外圈两环各占 1px，故最小可用半径为 6；chip 原拟 4 已上调为 6。
 
 ### 3.5 签名元素（三处，均取自形象本身）
 
