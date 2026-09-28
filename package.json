@@ -1,0 +1,14 @@
+{
+  "name": "piggyplan",
+  "version": "0.1.0",
+  "private": true,
+  "description": "个人待办与长期目标管理系统",
+  "type": "module",
+  "scripts": {
+    "start": "python piggyplan_desktop.py",
+    "desktop": "python piggyplan_desktop.py",
+    "web": "node server.mjs",
+    "test": "python piggyplan_desktop.py --self-test",
+    "test:gui": "python piggyplan_desktop.py --gui-smoke"
+  }
+}

@@ -1,0 +1,9 @@
+__pycache__/
+*.py[cod]
+.build-tools/
+build/
+dist/
+PiggyPlan.spec
+/_current.png
+/_current2.png
+/_screenshot_*.png

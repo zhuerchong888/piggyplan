@@ -1,0 +1,21 @@
+PiggyPlan Windows 绿色便携版
+============================
+
+启动方式
+--------
+双击 PiggyPlan.exe 即可运行，无需安装 Python、浏览器或数据库软件。
+
+请保留 PiggyPlan.exe 与 _internal 文件夹的相对位置，不要只移动 EXE。
+如需移动软件，请整体移动 PiggyPlan 文件夹。
+
+本地数据
+--------
+数据库：%APPDATA%\PiggyPlan\piggyplan.db
+每日备份：%APPDATA%\PiggyPlan\backups
+技术日志：%APPDATA%\PiggyPlan\logs
+
+软件不要求账号，核心功能不需要网络，任务内容不会默认上传。
+
+退出软件
+--------
+默认点击窗口关闭按钮会隐藏到系统托盘。需要完全退出时，右键托盘图标并选择“退出”。

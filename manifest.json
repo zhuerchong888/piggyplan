@@ -1,0 +1,14 @@
+{
+  "name": "日常 · PiggyPlan",
+  "short_name": "日常",
+  "description": "个人待办与长期目标管理系统",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#fff9f8",
+  "theme_color": "#f8cedb",
+  "lang": "zh-CN",
+  "icons": [
+    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ],
+  "categories": ["productivity", "lifestyle"]
+}
