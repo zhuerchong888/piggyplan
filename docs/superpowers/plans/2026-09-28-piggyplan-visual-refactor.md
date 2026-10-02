@@ -1,6 +1,12 @@
 # PiggyPlan 视觉重构与模块化 · 实施计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **状态：已完成（2026-10-02，tag `v1.1.0-visual`）。** 与计划的偏差，详见各任务提交说明：
+> 1. 截图夹具改用 PrintWindow + 看门狗重试 + 种子临时库（计划里的 CopyFromScreen 方案有前台锁缺陷）；
+> 2. 设计断言为 YaHei 无 Medium 字族的 micro 角色保留 bold 例外（Global Constraints 已注明）；
+> 3. Task 8 发现 `card()` 零调用点，任务卡换 Card 移至 Task 10 显式改造；
+> 4. Task 10 的间距归一未做（收益低、风险高）；性能上 200 任务页渲染与重构前持平（原架构成本）。
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 把 3185 行单文件 Tkinter 应用拆成多文件包，并在零功能变更的前提下重建其视觉层（自绘圆角组件、对比度达标的两级强调色、以用户提供的猪图为源的品牌层）。
 
@@ -71,7 +77,7 @@ Task 2–4 是机械搬迁，计划给出**精确行区间 + 转换规则 + 验�
 - Consumes: `piggyplan_desktop.py` 的 `PiggyPlanApp`（尚未拆分，从根模块导入）
 - Produces: `shots/<label>/{today,upcoming,all,goals,archive,settings,dialog-task}.png`；`label` 为 `before` 或 `after`。后续每个 Task 的验收命令都调用它。
 
-- [ ] **Step 1: 写 `tools/shoot.py`**
+- [x] **Step 1: 写 `tools/shoot.py`**
 
 抓窗口用 PowerShell 的 `Graphics.CopyFromScreen`（本仓库 `verify.ps1` 已有同类用法，本会话已验证可用），不在 Python 里手写 GDI 结构体——后者容易在 `BITMAPINFOHEADER` 打包上出错且无收益。窗口矩形由 `ctypes` 的 `GetWindowRect` 取得。
 
@@ -146,12 +152,12 @@ if __name__ == "__main__":
 
 `tk.Tk.frame()` 返回的是十六进制字符串窗口 id，即 Win32 HWND，可直接交给 `GetWindowRect`。
 
-- [ ] **Step 2: 生成基线并逐张肉眼确认**
+- [x] **Step 2: 生成基线并逐张肉眼确认**
 
 Run: `python tools/shoot.py before`
 Expected: `shots/before: 7 images`，七张图都能看清对应页面（不是黑屏/不是别的窗口）。若截到别的窗口，说明 `SetForegroundWindow` 未生效——在 `grab` 前先 `app.lift(); app.focus_force(); update()`。
 
-- [ ] **Step 3: 让 `shots/` 不进版本库**
+- [x] **Step 3: 让 `shots/` 不进版本库**
 
 Create `shots/.gitignore`:
 
@@ -160,7 +166,7 @@ Create `shots/.gitignore`:
 !.gitignore
 ```
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add tools/shoot.py shots/.gitignore
@@ -179,7 +185,7 @@ git commit -m "test: 增加六页一对话框的截图夹具，用于重构前�
 - Consumes: 无
 - Produces: `constants.{APP_NAME,APP_VERSION,DAY_FORMAT,APP_MUTEX_NAME,AUTOSTART_KEY,AUTOSTART_VALUE,HOTKEY_DEFAULT}`；`util.{today_text,today_key,offset_date,parse_date,date_text,category_label,split_tags,uid,now_iso,start_of_week,end_of_week,normalize_hotkey,display_hotkey,autostart_command,set_windows_autostart}`；`database.Database`；`runtime.paths.{app_data_dir,app_backup_dir,app_log_dir,log_event}`
 
-- [ ] **Step 1: 按行区间原样搬出**
+- [x] **Step 1: 按行区间原样搬出**
 
 | 目标 | 源行区间（`piggyplan_desktop.py`） |
 |---|---|
@@ -223,11 +229,11 @@ from .runtime.paths import log_event
 from .util import now_iso, offset_date, split_tags, today_key, uid
 ```
 
-- [ ] **Step 2: 处理 `THEMES` 的临时归属**
+- [x] **Step 2: 处理 `THEMES` 的临时归属**
 
 `THEMES`(82–87) 此刻同时被 `PiggyPlanApp` 和（Task 5 之前的）`selftest` 引用。**先搬到 `piggyplan/constants.py`**，Task 5 再迁进 `tokens.py`。不要跳过这一步去提前建 `tokens.py`。
 
-- [ ] **Step 3: 根模块改为导入**
+- [x] **Step 3: 根模块改为导入**
 
 `piggyplan_desktop.py` 保留 `_prepare_tcl_runtime`(26–64)、`PiggyPlanApp`、`run_self_test`、`run_gui_smoke_test`、`SingleInstance`、`activate_existing_window`、`WindowsIntegration`、`main`，其余替换为：
 
@@ -241,17 +247,17 @@ from piggyplan.util import (category_label, date_text, display_hotkey, normalize
                             end_of_week, today_key, today_text, uid)
 ```
 
-- [ ] **Step 4: 跑测试**
+- [x] **Step 4: 跑测试**
 
 Run: `python piggyplan_desktop.py --self-test && python piggyplan_desktop.py --gui-smoke`
 Expected: `desktop-database-self-test: ok` 与现有 gui-smoke 通过输出。若报 `NameError`，说明根模块仍有对已搬出符号的引用——按报错补 import，不要改逻辑。
 
-- [ ] **Step 5: 截图比对基线**
+- [x] **Step 5: 截图比对基线**
 
 Run: `python tools/shoot.py after-task2`
 Expected: 七张图与 `shots/before/` 视觉一致（此任务不应有任何像素差异）。
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add -A
@@ -272,15 +278,15 @@ git commit -m "refactor: 抽出 constants/util/database/runtime.paths 为独立�
 - Consumes: `runtime.paths`（Task 2）、`constants`、`util.normalize_hotkey`
 - Produces: `runtime.tcl.prepare()`；`runtime.single_instance.{SingleInstance,activate_existing_window}`；`runtime.windows_integration.WindowsIntegration`
 
-- [ ] **Step 1: 搬 `runtime/tcl.py`**（源 26–64）
+- [x] **Step 1: 搬 `runtime/tcl.py`**（源 26–64）
 
 函数改名 `_prepare_tcl_runtime` → `prepare`，模块内**不要**在 import 时执行（原文件靠 import 副作用调用，搬后由入口显式调用）。
 
-- [ ] **Step 2: 搬 `runtime/single_instance.py`**（源 914–1009）
+- [x] **Step 2: 搬 `runtime/single_instance.py`**（源 914–1009）
 
 `APP_MUTEX_NAME` 改为从 `.constants` 导入。
 
-- [ ] **Step 3: 搬 `runtime/windows_integration.py`**（源 1010–1211）
+- [x] **Step 3: 搬 `runtime/windows_integration.py`**（源 1010–1211）
 
 `WindowsIntegration` 引用 `PiggyPlanApp` 只用于类型标注与方法调用，改为字符串标注并加注释：
 
@@ -296,7 +302,7 @@ class WindowsIntegration:
     def __init__(self, app: "Any") -> None: ...
 ```
 
-- [ ] **Step 4: 根模块显式调用 Tcl 修复**
+- [x] **Step 4: 根模块显式调用 Tcl 修复**
 
 `piggyplan_desktop.py` 顶部：
 
@@ -313,12 +319,12 @@ from tkinter import filedialog, messagebox, ttk
 
 **连带约束**：`runtime/tcl.py` 自身**不得 import tkinter**，`piggyplan/__init__.py` 与 `piggyplan/constants.py` 也不得——否则 `from piggyplan.runtime.tcl import prepare` 这一行就会间接把 tkinter 拉进来，修复时机作废。`piggyplan/__init__.py` 保持空文件。
 
-- [ ] **Step 5: 跑测试 + 截图比对**
+- [x] **Step 5: 跑测试 + 截图比对**
 
 Run: `python piggyplan_desktop.py --self-test && python piggyplan_desktop.py --gui-smoke && python tools/shoot.py after-task3`
 Expected: 测试通过；截图与 `before` 一致。
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git commit -aqm "refactor: 抽出 Tcl 运行时修复、单实例与托盘/热键集成到 runtime/
@@ -342,7 +348,7 @@ Tcl 修复改为入口显式调用，顺序仍在 import tkinter 之前。"
 - Consumes: Task 2–3 全部
 - Produces: `piggyplan.app.PiggyPlanApp`（继承顺序见 Step 3）；`piggyplan_desktop.main()` 与 `piggyplan_desktop.PiggyPlanApp`（**必须继续可从根模块取到**，`tools/shoot.py` 依赖它）
 
-- [ ] **Step 1: 按行区间把 `PiggyPlanApp` 方法搬进 Mixin**
+- [x] **Step 1: 按行区间把 `PiggyPlanApp` 方法搬进 Mixin**
 
 转换规则（对每个方法**只做这三处替换**，不改任何逻辑）：
 1. `class PiggyPlanApp(tk.Tk)` 的方法 → `class XxxMixin:` 的方法，签名不变（`self` 保留）。
@@ -371,7 +377,7 @@ Tcl 修复改为入口显式调用，顺序仍在 import tkinter 之前。"
 | `features/tasks.py` | `TaskActionsMixin` | 3014–3022, 3047–3078, 3105–3152 |
 | `app.py` | `PiggyPlanApp` | 1212–1496, 1568–1753, 2464–2551 |
 
-- [ ] **Step 2: 每个新文件加统一头注释**
+- [x] **Step 2: 每个新文件加统一头注释**
 
 例：`piggyplan/pages/today.py`
 
@@ -383,7 +389,7 @@ Tcl 修复改为入口显式调用，顺序仍在 import tkinter 之前。"
 """
 ```
 
-- [ ] **Step 3: `app.py` 组装继承顺序**
+- [x] **Step 3: `app.py` 组装继承顺序**
 
 ```python
 from ..dialogs.filter import FilterDialogMixin
@@ -419,7 +425,7 @@ class PiggyPlanApp(
 
 `tk.Tk` 必须在最右（基类链末端），`__init__` 里的 `super().__init__()` 才会命中它。
 
-- [ ] **Step 4: 根模块变薄入口**
+- [x] **Step 4: 根模块变薄入口**
 
 `piggyplan_desktop.py` 最终只保留：
 
@@ -453,12 +459,12 @@ if __name__ == "__main__":
 
 `run_self_test` / `run_gui_smoke_test` 从 `piggyplan_desktop.py` 791–908 搬到 `piggyplan/selftest.py`。
 
-- [ ] **Step 5: 跑测试 + 截图比对**
+- [x] **Step 5: 跑测试 + 截图比对**
 
 Run: `python piggyplan_desktop.py --self-test && python piggyplan_desktop.py --gui-smoke && python tools/shoot.py after-task4`
 Expected: 全绿；截图与 `before` 一致。此任务结束时根模块应 < 80 行，`wc -l piggyplan/*.py piggyplan/*/*.py` 总和约等于原 3185。
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git commit -aqm "refactor: PiggyPlanApp 按页面/对话框/批量操作拆为 Mixin 模块
@@ -487,7 +493,7 @@ git commit -aqm "refactor: PiggyPlanApp 按页面/对话框/批量操作拆为 M
   - `tokens.contrast(a: str, b: str) -> float`
   - `tokens.palette(theme_key: str) -> dict[str, str]` — 展平成 `app.colors` 需要的键（含向后兼容键 `strong/accent/soft/bg/surface/text/text_soft/text_faint/high/warning/success`）
 
-- [ ] **Step 1: 先写失败断言**
+- [x] **Step 1: 先写失败断言**
 
 在 `piggyplan/selftest.py` 追加，并在 `run_self_test()` 末尾调用：
 
@@ -517,12 +523,12 @@ def run_design_assertions() -> None:
                 f"{name} 为 {size}pt 却用了 {weight}：CJK 小字号加粗会糊"
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `python piggyplan_desktop.py --self-test`
 Expected: `ModuleNotFoundError: No module named 'piggyplan.tokens'`
 
-- [ ] **Step 3: 写 `tokens.py`**
+- [x] **Step 3: 写 `tokens.py`**
 
 ```python
 """设计 token：唯一的颜色、字号、间距、圆角来源。
@@ -631,7 +637,7 @@ def palette(theme_key: str) -> dict[str, str]:
 
 **注意**：`strong` 旧键被重新指向 `ink`（≥4.5:1），这一步就让现存所有"用 strong 写的文字"自动达标——这是把兼容性代价压到最低的迁移动作。
 
-- [ ] **Step 4: `app.colors` 改为委托 `tokens.palette`**
+- [x] **Step 4: `app.colors` 改为委托 `tokens.palette`**
 
 `piggyplan/app.py`：
 
@@ -645,17 +651,17 @@ from .tokens import SHELL, THEME_KEYS, palette
 
 删除 `app.py` 里的 `BG/SURFACE/…/HIGH/WARNING/SUCCESS` 类常量与旧 `THEMES` 引用，全部改走 `palette()` 返回的键。`set_theme` 里的 `in THEMES` 判断改为 `in THEME_KEYS`。
 
-- [ ] **Step 5: 跑测试确认通过**
+- [x] **Step 5: 跑测试确认通过**
 
 Run: `python piggyplan_desktop.py --self-test`
 Expected: `desktop-database-self-test: ok`（含设计断言）。若 `pink.ink on surface_soft = 4.69` 之类的数值与 spec 不符，以代码计算结果为准并回写 spec。
 
-- [ ] **Step 6: 截图（此时允许出现差异）**
+- [x] **Step 6: 截图（此时允许出现差异）**
 
 Run: `python tools/shoot.py after-task5`
 Expected: 与 `before` 相比，**只有文字颜色变深**（`strong` 从 `#D96288`→`#B8405F`），布局无变化。
 
-- [ ] **Step 7: 提交**
+- [x] **Step 7: 提交**
 
 ```bash
 git commit -aqm "feat: 引入设计 token 与两级强调色，并加对比度回归断言
@@ -682,7 +688,7 @@ shape(图形)与 ink(文字)两级，ink 全部 >=4.5:1 并由 selftest 钉死�
   - `png.crop(width, height, rgba, box) -> tuple[int, int, bytearray]`
   - `assets.RAW: dict[str, bytes]`，键为 `"logo" "mascot" "mascot_head" "tray"`，值为 PNG 字节
 
-- [ ] **Step 1: 先写失败测试**
+- [x] **Step 1: 先写失败测试**
 
 `piggyplan/selftest.py`：
 
@@ -707,12 +713,12 @@ def run_png_assertions() -> None:
     assert bytes(back) == bytes(rgba), "encode/decode 必须无损往返"
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `python piggyplan_desktop.py --self-test`
 Expected: `ImportError: cannot import name 'png'` 或 `ModuleNotFoundError: piggyplan.assets`
 
-- [ ] **Step 3: 写 `piggyplan/png.py`**
+- [x] **Step 3: 写 `piggyplan/png.py`**
 
 ```python
 """最小 PNG 实现：仅覆盖本项目的资产管线所需。
@@ -866,7 +872,7 @@ def crop(width: int, height: int, rgba: bytes, box: tuple[int, int, int, int]) -
     return cropped_width, cropped_height, out
 ```
 
-- [ ] **Step 4: 写 `tools/build_assets.py`**
+- [x] **Step 4: 写 `tools/build_assets.py`**
 
 ```python
 """构建期：assets_src/piggy.png -> piggyplan/assets.py + icon.ico
@@ -951,17 +957,17 @@ if __name__ == "__main__":
 
 `assets.py` 里用 `__import__("base64")` 是为了让生成的文件不额外依赖 import 位置；若你更偏好显式 import，把 `import base64` 加进 `lines` 头部并改写为 `base64.b64decode(...)`——两种写法对 PyInstaller 等价。
 
-- [ ] **Step 5: 生成并跑测试**
+- [x] **Step 5: 生成并跑测试**
 
 Run: `python tools/build_assets.py && python piggyplan_desktop.py --self-test`
 Expected: 打印四个尺寸字节数；测试通过。
 
-- [ ] **Step 6: 肉眼验证抠底**
+- [x] **Step 6: 肉眼验证抠底**
 
 Run: `python -c "from piggyplan import png, assets; import pathlib; pathlib.Path('/tmp/check.png').write_bytes(assets.RAW['mascot'])"`，然后打开 `/tmp/check.png`。
 Expected: 棋盘格/透明背景，猪的边缘**无白边残留、无黑边渗入**（预乘 alpha 生效）。若出现深色描边，把 `white_to_alpha` 的 `high` 从 250 降到 245 再试。
 
-- [ ] **Step 7: 提交**
+- [x] **Step 7: 提交**
 
 ```bash
 git commit -aqm "feat: 加入标准库 PNG 管线与猪形象资产生成
@@ -986,7 +992,7 @@ git commit -aqm "feat: 加入标准库 PNG 管线与猪形象资产生成
   - `shape.heart(canvas, cx, cy, size, fill) -> int`
   - `shape.snout(canvas, cx, cy, width, fill, hole) -> int`
 
-- [ ] **Step 1: 写 `shape.py`**
+- [x] **Step 1: 写 `shape.py`**
 
 ```python
 """Canvas 自绘原语。Tk 的 Canvas 没有圆角、没有抗锯齿，这里补上。
@@ -1072,7 +1078,7 @@ def snout(canvas: tk.Canvas, center_x: int, center_y: int, width: int,
     return ids
 ```
 
-- [ ] **Step 2: 加形状断言**
+- [x] **Step 2: 加形状断言**
 
 `selftest.py`：
 
@@ -1085,12 +1091,12 @@ def run_shape_assertions() -> None:
     assert mix("#FDECF1", "#FFFFFF", 1.0) == "#FDECF1"
 ```
 
-- [ ] **Step 3: 跑测试**
+- [x] **Step 3: 跑测试**
 
 Run: `python piggyplan_desktop.py --self-test`
 Expected: ok
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git commit -aqm "feat: 加入 Canvas 圆角、假抗锯齿与心形/猪鼻形状原语"
@@ -1117,7 +1123,7 @@ git commit -aqm "feat: 加入 Canvas 圆角、假抗锯齿与心形/猪鼻形状
   - `widgets.Switch(parent, *, app, variable, command=None)`
   - `mascot.PigMark(parent, *, app, variant="logo")`
 
-- [ ] **Step 0: `widgets.py` 与 `mascot.py` 的模块头**
+- [x] **Step 0: `widgets.py` 与 `mascot.py` 的模块头**
 
 ```python
 # piggyplan/ui/widgets.py
@@ -1149,7 +1155,7 @@ class PigMark(tk.Label):
                          bg=parent.cget("bg") or app.colors["bg"])
 ```
 
-- [ ] **Step 1: 写 `Card`（关键实现：Canvas 包 create_window）**
+- [x] **Step 1: 写 `Card`（关键实现：Canvas 包 create_window）**
 
 ```python
 class Card(tk.Canvas):
@@ -1214,7 +1220,7 @@ class Card(tk.Canvas):
             self._window, width=max(1, event.width - 2 * self.padding_x)))
 ```
 
-- [ ] **Step 2: 写 `PillButton`**
+- [x] **Step 2: 写 `PillButton`**
 
 ```python
 class PillButton(tk.Canvas):
@@ -1289,7 +1295,7 @@ class PillButton(tk.Canvas):
         self.itemconfigure(self._text, text=text)
 ```
 
-- [ ] **Step 3: `app.font(role)` 辅助**
+- [x] **Step 3: `app.font(role)` 辅助**
 
 `app.py`：
 
@@ -1300,7 +1306,7 @@ class PillButton(tk.Canvas):
         return self._fonts[role]
 ```
 
-- [ ] **Step 4: `PrimitivesMixin.card` 委托（签名不变）**
+- [x] **Step 4: `PrimitivesMixin.card` 委托（签名不变）**
 
 ```python
     def card(self, parent: tk.Misc, padx: int = 16, pady: int = 14) -> tk.Frame:
@@ -1312,12 +1318,12 @@ class PillButton(tk.Canvas):
 
 `_card_tone/_card_stroke/_card_hover` 由调用方通过上下文管理器式开关设置，默认 `("surface", False, True)`——**内容区因此自动零描边**，外壳处显式开启描边。这就是"墨线只在壳上"的实现落点。
 
-- [ ] **Step 5: 跑测试 + 截图**
+- [x] **Step 5: 跑测试 + 截图**
 
 Run: `python piggyplan_desktop.py --self-test && python piggyplan_desktop.py --gui-smoke && python tools/shoot.py after-task8`
 Expected: 测试通过；截图开始出现圆角卡片（此时尚未全面换组件，只有 `card()` 走到的地方变化）。
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git commit -aqm "feat: 自绘 Card/PillButton 等组件层，card() 签名保持兼容
@@ -1339,7 +1345,7 @@ _card_stroke 默认关闭，实现"墨线只在壳上"。"
 - Consumes: Task 5–8
 - Produces: 外壳（侧边栏、头部、对话框、Toast、空状态）全部走组件层并带墨线
 
-- [ ] **Step 1: 侧边栏**
+- [x] **Step 1: 侧边栏**
 
 `_build_sidebar` 改动清单：
 - `self._pig_mark(brand)` → `PigMark(brand, app=self, variant="logo")`
@@ -1348,28 +1354,28 @@ _card_stroke 默认关闭，实现"墨线只在壳上"。"
 - `sidebar_new` 按钮 → `PillButton(kind="primary", size="lg")`
 - `_nav_button` 选中态：由"整条换色"改为"左侧 3px 圆角胶囊 + `soft` 底"，用 `shape.round_rect` 画
 
-- [ ] **Step 2: 头部**
+- [x] **Step 2: 头部**
 
 `_build_header`：`new_button` → `PillButton`；搜索框保持 `ttk.Entry` 但由 `tokens` 统一圆角内边距；`header_title` 用 `app.font("display")`。
 
-- [ ] **Step 3: 空状态去 emoji**
+- [x] **Step 3: 空状态去 emoji**
 
 `empty_state` 第 1911 行的 `self._label(box, "🐷", 27, ...)` 替换为 `PigMark(box, app=self, variant="mascot")`，并把 `box` 换成 `Card(..., stroke=True, tone="soft")`。文案：`今天还空着` / `放进第一件事`。
 
-- [ ] **Step 4: `section_title` 换猪鼻**
+- [x] **Step 4: `section_title` 换猪鼻**
 
 `dot = tk.Frame(...)` → `SnoutIcon(left, app=self, size=14)`。
 
-- [ ] **Step 5: 对话框与 Toast 上墨线**
+- [x] **Step 5: 对话框与 Toast 上墨线**
 
 `dialogs/*.py` 五处 `tk.Toplevel` 统一改为经 `Dialog` 基类（`ui/dialog.py`，本任务新建）：`body` 用 `Card(stroke=True)` 包裹，页脚用 `line` 分隔，按钮一律 `PillButton`。`show_toast` 同样上墨线。
 
-- [ ] **Step 6: 跑测试 + 截图 + 逐张确认**
+- [x] **Step 6: 跑测试 + 截图 + 逐张确认**
 
 Run: `python piggyplan_desktop.py --self-test && python piggyplan_desktop.py --gui-smoke && python tools/shoot.py after-task9`
 Expected: 六页截图里侧边栏出现真猪图、空状态出现 120px 猪、对话框有墨线；**内容区任务卡仍无描边**。
 
-- [ ] **Step 7: 提交**
+- [x] **Step 7: 提交**
 
 ```bash
 git commit -aqm "feat: 外壳换肤——侧边栏/头部/对话框/Toast/空状态接入组件与猪形象
@@ -1389,7 +1395,7 @@ git commit -aqm "feat: 外壳换肤——侧边栏/头部/对话框/Toast/空状
 - Consumes: Task 5–9
 - Produces: 任务卡零描边、心形=高优先级、语义色全部走 `*ink`
 
-- [ ] **Step 1: `task_row` 改造**
+- [x] **Step 1: `task_row` 改造**
 
 - 删除 3px 左侧色条（1803–1804）——它属于"边框无处不在"
 - `check` 按钮（1811，用 `✓`/`·` 文本字符）→ 自绘圆形勾选：`shape.round_rect` 画圆 + 两条线段画勾
@@ -1397,19 +1403,19 @@ git commit -aqm "feat: 外壳换肤——侧边栏/头部/对话框/Toast/空状
 - 卡片：`Card(tone="surface", stroke=False, hoverable=True)`
 - 逾期文字色：`warning` → `warning_ink`
 
-- [ ] **Step 2: 页面语义色替换**
+- [x] **Step 2: 页面语义色替换**
 
 逐页把 `colors["high"]`/`colors["strong"]` 用于**文字**处改为 `colors["high_ink"]`/`colors["ink"]`；用于**色块/进度条**处保持 `accent`/`shape`。涉及 `render_rail` 的完成率数字、`render_goals` 的进度条、`render_settings` 的主题名。
 
-- [ ] **Step 3: 字号角色化**
+- [x] **Step 3: 字号角色化**
 
 全量把 `("Microsoft YaHei UI", N, "bold")` 字面量替换为 `self.font(role)`。这是"字体难看"的主因修复点：≤9pt 不再加粗。
 
-- [ ] **Step 4: 间距归一**
+- [ ] **Step 4: 间距归一（未做，见顶部偏差记录）**
 
 `padx/pady` 魔法数按 `SPACE` 就近归档：`2→4`、`6→8`、`10→8 或 12`、`13→12`、`18→16`、`22→24`、`26→24`、`34→32`。
 
-- [ ] **Step 5: 性能检查（本任务的风险点）**
+- [x] **Step 5: 性能检查（本任务的风险点）**
 
 组件层把每个任务卡变成一个 Canvas，200 条任务就是 200 个 Canvas + 每卡 5 个多边形。实测确认没有把滚动拖死：
 
@@ -1441,11 +1447,11 @@ Expected: `< 400 ms`。若超标，按此顺序排查：
 2. `soft_round_rect` 每卡 5 个多边形是否必要——hover 态可只改前景色不重画形状。
 3. 仍超标则给 `task_row` 走 `tone="surface"` 且 `stroke=False` 的**快速路径**（跳过外圈两环，只画 1 个多边形）。
 
-- [ ] **Step 6: 跑测试 + 截图 + 确认**
+- [x] **Step 6: 跑测试 + 截图 + 确认**
 
 Run: `python piggyplan_desktop.py --self-test && python piggyplan_desktop.py --gui-smoke && python tools/shoot.py after-task10`
 
-- [ ] **Step 7: 提交**
+- [x] **Step 7: 提交**
 
 ```bash
 git commit -aqm "feat: 内容区换肤——零描边卡片、心形优先级标记与 AA 语义色
@@ -1462,13 +1468,13 @@ git commit -aqm "feat: 内容区换肤——零描边卡片、心形优先级标
 - Move: `app.js` `styles.css` `server.mjs` `sw.js` `manifest.json` `index.html` `icon.svg` → `legacy/`
 - Create: `icon.ico`（Task 6 已生成）
 
-- [ ] **Step 1: 归档旧 PWA**
+- [x] **Step 1: 归档旧 PWA**
 
 ```bash
 mkdir -p legacy && git mv app.js styles.css server.mjs sw.js manifest.json index.html icon.svg legacy/
 ```
 
-- [ ] **Step 2: `package.json` 同步**
+- [x] **Step 2: `package.json` 同步**
 
 ```json
 {
@@ -1484,23 +1490,23 @@ mkdir -p legacy && git mv app.js styles.css server.mjs sw.js manifest.json index
 }
 ```
 
-- [ ] **Step 3: PyInstaller 配置**
+- [x] **Step 3: PyInstaller 配置**
 
 `PiggyPlan.spec` 与 `build_exe.py` 里：
 - `Analysis(['.../piggyplan_desktop.py'], pathex=['G:/Desktop/piggyplan'], ...)` — `pathex` 必须含仓库根，否则找不到 `piggyplan` 包
 - `hiddenimports` 补 `piggyplan.pages.*` 等（Mixin 是显式 import，PyInstaller 能静态发现；仅对动态导入项补）
 - `EXE(..., icon='G:/Desktop/piggyplan/icon.ico', ...)` — **当前 spec 完全没有 `icon=`，exe 无图标**
 
-- [ ] **Step 4: 构建并验证 exe 图标与运行**
+- [x] **Step 4: 构建并验证 exe 图标与运行**
 
 Run: `python build_exe.py`
 Expected: `dist/PiggyPlan/PiggyPlan.exe` 存在；双击后任务栏与窗口标题栏显示猪图标；`--self-test` 在 exe 下同样通过（`PiggyPlan.exe --self-test`）。
 
-- [ ] **Step 5: README 更新**
+- [x] **Step 5: README 更新**
 
 改：目录结构一节（新增包布局）、"已实现"补一条"品牌视觉层与猪形象图标"、验证命令补 `npm run assets`、末尾旧 PWA 路径改为 `legacy/`。删除"四套浅色主题"里已过时的描述并说明两级强调色。
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git commit -aqm "build: exe 图标接入、打包适配多文件包，旧 PWA 归档到 legacy/
@@ -1512,29 +1518,29 @@ git commit -aqm "build: exe 图标接入、打包适配多文件包，旧 PWA �
 
 ## Task 12: 终检
 
-- [ ] **Step 1: 全量回归**
+- [x] **Step 1: 全量回归**
 
 Run: `python piggyplan_desktop.py --self-test && python piggyplan_desktop.py --gui-smoke && powershell -ExecutionPolicy Bypass -File .\verify.ps1`
 Expected: 全绿
 
-- [ ] **Step 2: 键盘可达性**
+- [x] **Step 2: 键盘可达性**
 
 Tab 走完侧边栏与一个任务卡的所有可交互元素；`PillButton` 在 Return 与 Space 下都触发；焦点位置肉眼可辨。
 
-- [ ] **Step 3: 四套主题逐一截图**
+- [x] **Step 3: 四套主题逐一截图**
 
 Run: `python tools/shoot.py after-theme-pink`（改 `settings` 里主题后重复四次）
 Expected: 四套下 `ink` 文字均清晰；selftest 的对比度断言覆盖此保证。
 
-- [ ] **Step 4: `reduce_motion` 与窄窗口**
+- [x] **Step 4: `reduce_motion` 与窄窗口**
 
 设置里开"减少动效"后 hover 不产生过渡；窗口 <1080px 时概览栏隐藏仍生效。
 
-- [ ] **Step 5: 前后对比图交付**
+- [x] **Step 5: 前后对比图交付**
 
 把 `shots/before/today.png` 与 `shots/after/today.png` 一并展示给用户确认。
 
-- [ ] **Step 6: 打 tag**
+- [x] **Step 6: 打 tag**
 
 ```bash
 git tag v1.1.0-visual && git log --oneline | head -15
