@@ -12,12 +12,13 @@ BUILD_TOOLS = PROJECT_DIR / ".build-tools"
 PYTHON_ROOT = Path(sys.base_prefix)
 TCL_ROOT = PYTHON_ROOT / "tcl"
 PACKAGING_RUNTIME = PROJECT_DIR / "build" / "packaging-runtime"
+PACKAGING_DIR = PROJECT_DIR / "packaging"
 PACKAGED_TCL = PACKAGING_RUNTIME / "tcl8.6"
 PACKAGED_TK = PACKAGING_RUNTIME / "tk8.6"
 
 
 def prepare_tcl_tk_runtime() -> None:
-    """Copy and repair Tcl/Tk scripts for this relocated one-file build."""
+    """Copy and repair Tcl/Tk scripts for the portable directory build."""
 
     shutil.copytree(TCL_ROOT / "tcl8.6", PACKAGED_TCL, dirs_exist_ok=True)
     shutil.copytree(TCL_ROOT / "tk8.6", PACKAGED_TK, dirs_exist_ok=True)
@@ -70,8 +71,8 @@ if __name__ == "__main__":
             "--onedir",
             "--windowed",
             "--name=PiggyPlan",
-            f"--additional-hooks-dir={PROJECT_DIR / 'packaging_hooks'}",
-            f"--runtime-hook={PROJECT_DIR / 'packaging_hooks' / 'pyi_rth_piggyplan_tk.py'}",
+            f"--additional-hooks-dir={PACKAGING_DIR / 'hooks'}",
+            f"--runtime-hook={PACKAGING_DIR / 'hooks' / 'pyi_rth_piggyplan_tk.py'}",
             "--paths",
             str(PROJECT_DIR),
             "--icon",
@@ -86,11 +87,12 @@ if __name__ == "__main__":
             f"--add-data={PACKAGED_TCL};_tcl_data",
             f"--add-data={PACKAGED_TK};_tk_data",
             f"--add-data={TCL_ROOT / 'tcl8'};tcl8",
-            f"--version-file={PROJECT_DIR / 'version_info.txt'}",
+            f"--add-data={PROJECT_DIR / 'icon.ico'};.",
+            f"--version-file={PACKAGING_DIR / 'version_info.txt'}",
             f"--distpath={PROJECT_DIR / 'dist'}",
             f"--workpath={PROJECT_DIR / 'build'}",
-            f"--specpath={PROJECT_DIR}",
+            f"--specpath={PROJECT_DIR / 'build' / 'spec'}",
             str(PROJECT_DIR / "piggyplan_desktop.py"),
         ]
     )
-    shutil.copy2(PROJECT_DIR / "便携版使用说明.txt", PROJECT_DIR / "dist" / "PiggyPlan" / "使用说明.txt")
+    shutil.copy2(PROJECT_DIR / "docs" / "便携版使用说明.txt", PROJECT_DIR / "dist" / "PiggyPlan" / "使用说明.txt")

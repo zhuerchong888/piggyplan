@@ -7,6 +7,7 @@ import os
 import sys
 from ctypes import wintypes
 from typing import Any
+from pathlib import Path
 
 from ..constants import APP_NAME, HOTKEY_DEFAULT
 from ..util import display_hotkey, normalize_hotkey
@@ -137,6 +138,10 @@ class WindowsIntegration:
         self.user32.DestroyWindow.argtypes = [wintypes.HWND]
         self.user32.LoadIconW.argtypes = [wintypes.HWND, wintypes.LPCWSTR]
         self.user32.LoadIconW.restype = ctypes.c_void_p
+        self.user32.LoadImageW.argtypes = [ctypes.c_void_p, wintypes.LPCWSTR, wintypes.UINT, ctypes.c_int, ctypes.c_int, wintypes.UINT]
+        self.user32.LoadImageW.restype = ctypes.c_void_p
+        self.user32.DestroyIcon.argtypes = [ctypes.c_void_p]
+        self.user32.DestroyIcon.restype = wintypes.BOOL
         self.user32.LoadCursorW.argtypes = [wintypes.HWND, wintypes.LPCWSTR]
         self.user32.LoadCursorW.restype = ctypes.c_void_p
         self.shell32.Shell_NotifyIconW.argtypes = [wintypes.DWORD, ctypes.POINTER(_NOTIFYICONDATAW)]
@@ -244,7 +249,9 @@ class WindowsIntegration:
         data.uID = 1
         data.uFlags = self.NIF_MESSAGE | self.NIF_ICON | self.NIF_TIP
         data.uCallbackMessage = self.WM_TRAYICON
-        data.hIcon = self.user32.LoadIconW(None, ctypes.cast(ctypes.c_void_p(32512), wintypes.LPCWSTR))
+        icon_path = Path(__file__).resolve().parents[2] / "icon.ico"
+        self._owned_tray_icon = self.user32.LoadImageW(None, str(icon_path), 1, 16, 16, 0x0010)
+        data.hIcon = self._owned_tray_icon or self.user32.LoadIconW(None, ctypes.cast(ctypes.c_void_p(32512), wintypes.LPCWSTR))
         data.szTip = APP_NAME
         self._tray_data = data
         self.tray_available = bool(self.shell32.Shell_NotifyIconW(self.NIM_ADD, ctypes.byref(data)))
@@ -268,6 +275,9 @@ class WindowsIntegration:
             self.shell32.Shell_NotifyIconW(self.NIM_DELETE, ctypes.byref(self._tray_data))
         if self.hwnd:
             self.user32.DestroyWindow(wintypes.HWND(self.hwnd))
+        if getattr(self, "_owned_tray_icon", None):
+            self.user32.DestroyIcon(self._owned_tray_icon)
+            self._owned_tray_icon = None
         self.hwnd = None
         self.available = False
         self.tray_available = False

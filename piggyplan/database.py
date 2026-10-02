@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import csv
 import json
+import math
 import sqlite3
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Iterable
 
-from .util import date_text, end_of_week, now_iso, offset_date, split_tags, start_of_week, today_key, uid
+from .util import category_label, date_text, end_of_week, now_iso, offset_date, parse_date, split_tags, start_of_week, today_key, uid
 
 
 class Database:
@@ -309,9 +310,13 @@ class Database:
         if not task or task["status"] == "deleted":
             return
         with self.conn:
-            self.conn.execute("UPDATE tasks SET status='deleted',deleted_at=?,deleted_previous_status=?,updated_at=? WHERE id=?", (now_iso(), task["status"], now_iso(), task_id))
-            if task["planned_date"] and task["planned_date"] > today_key():
-                self.conn.execute("UPDATE task_plan_history SET cancelled_before_due=1,superseded_at=? WHERE task_id=? AND planned_date=? AND superseded_at IS NULL", (now_iso(), task_id, task["planned_date"]))
+            self._soft_delete_task(task, now_iso())
+
+    def _soft_delete_task(self, task: dict[str, Any] | sqlite3.Row, timestamp: str) -> None:
+        """Update one task and its plan inside the caller's transaction."""
+        self.conn.execute("UPDATE tasks SET status='deleted',deleted_at=?,deleted_previous_status=?,updated_at=? WHERE id=?", (timestamp, task["status"], timestamp, task["id"]))
+        if task["planned_date"] and task["planned_date"] > today_key():
+            self.conn.execute("UPDATE task_plan_history SET cancelled_before_due=1,superseded_at=? WHERE task_id=? AND planned_date=? AND superseded_at IS NULL", (timestamp, task["id"], task["planned_date"]))
 
     def restore_task(self, task_id: str) -> None:
         with self.conn:
@@ -381,7 +386,7 @@ class Database:
         return {"total": total, "completed": completed, "remaining": total - completed, "progress": progress}
 
     def achieve_goal(self, goal_id: str, option: str = "detach") -> None:
-        remaining = self.conn.execute("SELECT id,status FROM tasks WHERE goal_id=? AND status='todo'", (goal_id,)).fetchall()
+        remaining = self.conn.execute("SELECT id,status,planned_date FROM tasks WHERE goal_id=? AND status='todo'", (goal_id,)).fetchall()
         with self.conn:
             for row in remaining:
                 if option == "detach":
@@ -393,7 +398,7 @@ class Database:
                     if task:
                         self._mark_plan_completion(task, completed_at)
                 elif option == "delete":
-                    self.conn.execute("UPDATE tasks SET status='deleted',deleted_at=?,deleted_previous_status='todo',updated_at=? WHERE id=?", (now_iso(), now_iso(), row["id"]))
+                    self._soft_delete_task(row, now_iso())
             self.conn.execute("UPDATE goals SET status='achieved',achieved_at=? WHERE id=?", (now_iso(), goal_id))
 
     def restore_goal(self, goal_id: str) -> None:
@@ -401,13 +406,12 @@ class Database:
         self.conn.commit()
 
     def delete_goal(self, goal_id: str, option: str = "detach") -> None:
-        tasks = self.conn.execute("SELECT id,status FROM tasks WHERE goal_id=? AND status!='deleted'", (goal_id,)).fetchall()
+        tasks = self.conn.execute("SELECT id,status,planned_date FROM tasks WHERE goal_id=? AND status!='deleted'", (goal_id,)).fetchall()
         with self.conn:
             for row in tasks:
                 if option == "delete" and row["status"] == "todo":
-                    self.conn.execute("UPDATE tasks SET status='deleted',deleted_at=?,deleted_previous_status='todo',goal_id=NULL,updated_at=? WHERE id=?", (now_iso(), now_iso(), row["id"]))
-                else:
-                    self.conn.execute("UPDATE tasks SET goal_id=NULL,updated_at=? WHERE id=?", (now_iso(), row["id"]))
+                    self._soft_delete_task(row, now_iso())
+                self.conn.execute("UPDATE tasks SET goal_id=NULL,updated_at=? WHERE id=?", (now_iso(), row["id"]))
             self.conn.execute("DELETE FROM goals WHERE id=?", (goal_id,))
 
     def create_template(self, task_id: str) -> None:
@@ -494,19 +498,20 @@ class Database:
             writer = csv.writer(handle)
             writer.writerow(["标题", "状态", "分类", "优先级", "计划日期", "实际完成日期", "所属目标", "标签", "备注"])
             for task in self.list_tasks(include_completed=True, status="completed"):
-                writer.writerow([task["title"], "已完成", "生活" if task["category"] == "life" else "工作", "高" if task["priority"] == "high" else "普通", date_text(task["planned_date"]), task["completed_at"][:10] if task["completed_at"] else "", task.get("goal_title") or "独立待办", "、".join(task["tags"]), task["note"]])
+                writer.writerow([task["title"], "已完成", category_label(task["category"]), "高" if task["priority"] == "high" else "普通", task.get("planned_date") or "", task["completed_at"][:10] if task["completed_at"] else "", task.get("goal_title") or "独立待办", "、".join(task["tags"]), task["note"]])
 
     def import_json(self, path: str | Path) -> None:
         payload = json.loads(Path(path).read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError("备份结构不正确")
         data = payload.get("data", payload)
         if not isinstance(data, dict) or not isinstance(data.get("tasks"), list) or not isinstance(data.get("goals"), list):
             raise ValueError("备份结构不正确")
         tasks = data["tasks"]
         goals = data["goals"]
-        if any(not isinstance(item, dict) or not str(item.get("id", "")).strip() or not str(item.get("title", "")).strip() for item in [*tasks, *goals]):
-            raise ValueError("备份中存在缺少 ID 或标题的记录")
-        task_ids = [str(item["id"]) for item in tasks]
-        goal_ids = [str(item["id"]) for item in goals]
+        self._validate_backup_records(data)
+        task_ids = [item["id"] for item in tasks]
+        goal_ids = [item["id"] for item in goals]
         if len(task_ids) != len(set(task_ids)) or len(goal_ids) != len(set(goal_ids)):
             raise ValueError("备份中存在重复 ID")
         known_goals = set(goal_ids)
@@ -529,13 +534,123 @@ class Database:
             for key, value in data.get("settings", {}).items():
                 self.conn.execute("INSERT INTO app_settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, str(value)))
 
+    @staticmethod
+    def _validate_backup_records(data: dict[str, Any]) -> None:
+        """Validate nested values before the replacement transaction starts.
+
+        Older backups may omit optional collections and metadata. Present fields
+        must still be usable by editors, sorting, statistics and the settings UI.
+        """
+
+        def collection(record: dict[str, Any], key: str) -> list:
+            values = record.get(key, [])
+            if not isinstance(values, list):
+                raise ValueError(f"备份中的 {key} 应为列表")
+            return values
+
+        def tags(record: dict[str, Any], allow_null: bool = False) -> None:
+            values = record.get("tags", [])
+            if values is None and allow_null:
+                values = []
+            if not isinstance(values, (str, list)) or isinstance(values, list) and any(not isinstance(value, str) for value in values):
+                raise ValueError("备份中的标签格式不正确")
+            record["tags"] = split_tags(values)
+
+        def flag(record: dict[str, Any], key: str, nullable: bool = False) -> None:
+            if key not in record:
+                return
+            value = record[key]
+            if nullable and value is None:
+                return
+            if value not in (0, 1, "0", "1"):
+                raise ValueError(f"备份中的 {key} 应为完成或未完成状态")
+            record[key] = int(value)
+
+        def record_values(record: dict[str, Any], required: bool = False) -> None:
+            if not isinstance(record, dict):
+                raise ValueError("备份中存在格式不正确的记录")
+            for key in ("id", "title", "note"):
+                if key in record and not isinstance(record[key], str):
+                    raise ValueError(f"备份中的 {key} 应为文本")
+            if required and (not record.get("id", "").strip() or not record.get("title", "").strip()):
+                raise ValueError("备份中存在缺少 ID 或标题的记录")
+            if "id" in record and not record["id"].strip():
+                raise ValueError("备份中存在空 ID")
+            if "sort_rank" in record:
+                try:
+                    rank = float(record["sort_rank"])
+                except (TypeError, ValueError):
+                    raise ValueError("备份中的排序值不正确") from None
+                if not math.isfinite(rank):
+                    raise ValueError("备份中的排序值不正确")
+                record["sort_rank"] = rank
+            for key in ("created_at", "updated_at", "assigned_at", "completed_at", "deleted_at", "achieved_at", "superseded_at"):
+                if key not in record or record[key] is None and key in ("completed_at", "deleted_at", "achieved_at", "superseded_at"):
+                    continue
+                if not isinstance(record[key], str):
+                    raise ValueError(f"备份中的 {key} 时间格式不正确")
+                try:
+                    datetime.fromisoformat(record[key].replace("Z", "+00:00"))
+                except ValueError:
+                    raise ValueError(f"备份中的 {key} 时间格式不正确") from None
+            for key in ("planned_date", "planned_finish_date"):
+                if key not in record or record[key] in (None, ""):
+                    continue
+                parsed = parse_date(record[key]) if isinstance(record[key], str) else None
+                if parsed is None:
+                    raise ValueError(f"备份中的 {key} 日期格式不正确")
+                record[key] = parsed.isoformat()
+            for key, values in (("category", ("work", "life")), ("priority", ("normal", "high"))):
+                if key in record and record[key] not in values:
+                    raise ValueError(f"备份中的 {key} 值不正确")
+
+        for goal in data["goals"]:
+            record_values(goal, required=True)
+            if goal.get("status", "active") not in ("active", "achieved"):
+                raise ValueError("备份中的目标状态不正确")
+        nested_ids: dict[str, set[str]] = {"subtasks": set(), "plan_history": set(), "templates": set()}
+        for task in data["tasks"]:
+            record_values(task, required=True)
+            if task.get("status", "todo") not in ("todo", "completed", "deleted"):
+                raise ValueError("备份中的待办状态不正确")
+            if task.get("goal_id") is not None and not isinstance(task["goal_id"], str):
+                raise ValueError("备份中的目标关联不正确")
+            tags(task, allow_null=True)
+            for key in ("subtasks", "plan_history"):
+                for item in collection(task, key):
+                    record_values(item)
+                    if "id" in item:
+                        if item["id"] in nested_ids[key]:
+                            raise ValueError("备份中存在重复 ID")
+                        nested_ids[key].add(item["id"])
+                    if key == "subtasks":
+                        flag(item, "completed")
+                    else:
+                        if not item.get("planned_date"):
+                            raise ValueError("备份中的计划历史缺少日期")
+                        flag(item, "became_due")
+                        flag(item, "fulfilled_on_time", nullable=True)
+                        flag(item, "cancelled_before_due")
+        for template in collection(data, "templates"):
+            record_values(template)
+            if "id" in template:
+                if template["id"] in nested_ids["templates"]:
+                    raise ValueError("备份中存在重复 ID")
+                nested_ids["templates"].add(template["id"])
+            tags(template)
+            if any(not isinstance(step, str) for step in collection(template, "subtasks")):
+                raise ValueError("备份中的模板子步骤应为文本")
+        settings = data.get("settings", {})
+        if not isinstance(settings, dict) or any(not isinstance(value, (str, int, float, bool)) for value in settings.values()):
+            raise ValueError("备份中的设置格式不正确")
+
     def clear_all(self) -> None:
         with self.conn:
             self.conn.executescript("DELETE FROM task_tags; DELETE FROM tags; DELETE FROM subtasks; DELETE FROM task_plan_history; DELETE FROM tasks; DELETE FROM goals; DELETE FROM task_templates;")
 
     def seed_demo(self) -> None:
         product = self.create_goal("完成产品季度复盘", "把用户反馈、数据和下一步行动整理成一份能推动决策的复盘。", "work", "high", offset_date(24))
-        movement = self.create_goal("建立每周运动习惯", "让运动成为轻量、可持续的生活节奏。", "life", "normal", offset_date(48))
+        reading = self.create_goal("建立每周阅读习惯", "每周阅读一个章节，留下能够回顾的学习笔记。", "life", "normal", offset_date(48))
         old = offset_date(-2)
         yesterday = offset_date(-1)
         self.create_task("整理上周项目会议结论", "把决策、负责人和下一步行动补进项目文档。", "work", "high", old, product, ["项目", "复盘"])
@@ -543,10 +658,10 @@ class Database:
         self.toggle_task(feedback)
         self.create_task("给客户发出版本确认邮件", "确认体验优化清单和本周交付范围。", "work", "high", today_key(), product, ["沟通"])
         self.create_task("补齐复盘分享的大纲", "先完成结构，不追求一次写完。", "work", "high", today_key(), product, ["输出"])
-        self.create_task("完成 30 分钟轻松跑", "", "life", "normal", today_key(), movement, ["健康"])
+        self.create_task("阅读 30 分钟专业书籍", "记录一个新概念和一个待解的问题。", "life", "normal", today_key(), reading, ["阅读"])
         self.create_task("准备周五产品演示", "挑 3 个最能说明变化的场景，配上前后对比。", "work", "high", offset_date(2), product, ["演示"])
-        self.create_task("安排本周下一次拉伸时间", "", "life", "normal", offset_date(4), movement, ["健康"])
-        self.create_task("购买新的收纳盒", "量一下书桌抽屉，再决定尺寸。", "life", "normal", None, None, ["采购"])
+        self.create_task("整理本周阅读笔记", "用自己的话总结要点，再列出下一步阅读方向。", "life", "normal", offset_date(4), reading, ["阅读", "笔记"])
+        self.create_task("复习上一节课程笔记", "整理关键公式，标出还需要练习的部分。", "life", "normal", None, None, ["课程"])
         archived = self.create_task("发布新版帮助中心首页", "", "work", "normal", offset_date(-8), None, ["发布"])
         self.toggle_task(archived)
         self.create_template_from_values("每周复盘", "回顾本周完成情况，留下下周最重要的三个动作。", "work", "normal", ["复盘"], ["回顾已完成事项", "记录阻塞点", "选出下周三个动作"])

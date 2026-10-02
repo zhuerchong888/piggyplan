@@ -13,6 +13,7 @@ from datetime import date, datetime
 from .constants import APP_NAME, APP_VERSION, HOTKEY_DEFAULT
 from .tokens import THEME_KEYS, palette, resolve_fonts
 from .ui.mascot import PigMark
+from .assets import RAW
 from .ui.shape import round_rect
 from .ui.widgets import Card, PillButton
 from .database import Database
@@ -68,7 +69,9 @@ class PiggyPlanApp(
             if key not in self.settings:
                 self.db.set_setting(key, value)
                 self.settings[key] = value
-        self.theme_key = self.settings.get("theme", "pink") if self.settings.get("theme", "pink") in THEME_KEYS else THEME_KEYS[0]
+        self.theme_key = "pink"
+        self.settings["theme"] = "pink"
+        self.db.set_setting("theme", "pink")
         startup_page = self.settings.get("startup_page", self.settings.get("last_view", "today"))
         self.view = startup_page if startup_page in {"today", "upcoming", "all", "goals", "archive", "settings"} else "today"
         self.selected_goal_id: str | None = None
@@ -86,7 +89,7 @@ class PiggyPlanApp(
         self.toast_undo_callback = None
         self.tray_menu: tk.Menu | None = None
         self._exiting = False
-        self._compact_window = False
+        self._compact_window = True
         self._resize_after: str | None = None
         self._natural_day = today_key()
         self._drag_task_id: str | None = None
@@ -95,12 +98,14 @@ class PiggyPlanApp(
         self.start_minimized = start_minimized or self.settings.get("startup_minimized") == "1"
         self.configure(bg=self.colors["bg"])
         self.title(APP_NAME)
+        self._window_icons = [tk.PhotoImage(data=RAW[name]) for name in ("tray", "logo")]
+        self.iconphoto(True, *self._window_icons)
         self.minsize(860, 600)
-        geometry = self.settings.get("geometry", "1160x760")
+        geometry = self.settings.get("geometry", "1240x820")
         try:
             self.geometry(geometry)
         except tk.TclError:
-            self.geometry("1160x760")
+            self.geometry("1240x820")
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.bind("<Configure>", self._window_resized)
         self._configure_styles()
@@ -132,140 +137,161 @@ class PiggyPlanApp(
 
     def _configure_styles(self) -> None:
         style = ttk.Style(self)
-        try:
+        if style.theme_use() != "clam":
             style.theme_use("clam")
-        except tk.TclError:
-            pass
-        colors = self.colors
-        style.configure("TEntry", padding=(11, 9), fieldbackground=colors["soft"], background=colors["soft"], foreground=colors["text"], bordercolor=colors["soft"], lightcolor=colors["soft"], darkcolor=colors["soft"], font=self.font("body"))
-        style.map("TEntry", bordercolor=[("focus", colors["strong"])], lightcolor=[("focus", colors["strong"])], darkcolor=[("focus", colors["strong"])])
-        style.configure("TCombobox", padding=(10, 8), fieldbackground=colors["soft"], background=colors["soft"], foreground=colors["text"], bordercolor=colors["soft"], lightcolor=colors["soft"], darkcolor=colors["soft"], arrowcolor=colors["strong"], font=self.font("body"))
-        style.map("TCombobox", bordercolor=[("focus", colors["strong"])], lightcolor=[("focus", colors["strong"])], darkcolor=[("focus", colors["strong"])])
-        style.configure("Vertical.TScrollbar", troughcolor=colors["bg"], background=colors["line"], arrowcolor=colors["text_soft"], bordercolor=colors["bg"], lightcolor=colors["bg"], darkcolor=colors["bg"])
+        c = self.colors
+        for name in ("TEntry", "TCombobox"):
+            style.configure(name, padding=(10, 7), fieldbackground=c["surface"],
+                            background=c["surface"], foreground=c["text"],
+                            bordercolor=c["line_strong"], lightcolor=c["surface"],
+                            darkcolor=c["surface"], arrowcolor=c["text_soft"],
+                            selectbackground=c["soft"], selectforeground=c["text"],
+                            font=self.font("body"))
+            style.map(name, fieldbackground=[("readonly", c["surface"]), ("disabled", c["surface_soft"])],
+                      foreground=[("readonly", c["text"]), ("disabled", c["text_soft"])],
+                      background=[("readonly", c["surface"])],
+                      bordercolor=[("focus", c["strong"])],
+                      lightcolor=[("focus", c["surface"])], darkcolor=[("focus", c["surface"])])
+        style.configure("Search.TEntry", padding=(12, 8), bordercolor=c["line"],
+                        fieldbackground=c["surface"], font=self.font("meta"))
+        style.configure("Vertical.TScrollbar", width=9, arrowsize=0,
+                        troughcolor=c["bg"], background=c["line_strong"],
+                        bordercolor=c["bg"], lightcolor=c["line_strong"], darkcolor=c["line_strong"])
+        self.option_add("*TCombobox*Listbox.font", self.font("body"))
+        self.option_add("*TCombobox*Listbox.background", c["surface"])
+        self.option_add("*TCombobox*Listbox.foreground", c["text"])
+        self.option_add("*TCombobox*Listbox.selectBackground", c["soft"])
+        self.option_add("*TCombobox*Listbox.selectForeground", c["strong"])
 
     def _build_shell(self) -> None:
+        c = self.colors
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=1)
-        self.sidebar = tk.Frame(self, width=248, bg=self.colors["soft_surface"], highlightthickness=0)
+        self.sidebar = tk.Frame(self, width=204, bg=c["soft_surface"])
         self.sidebar.grid(row=0, column=0, sticky="nsew")
         self.sidebar.grid_propagate(False)
-        self.main = tk.Frame(self, bg=self.colors["bg"])
+        self.sidebar.grid_columnconfigure(0, weight=1)
+        self.main = tk.Frame(self, bg=c["bg"])
         self.main.grid(row=0, column=1, sticky="nsew")
         self.main.grid_rowconfigure(1, weight=1)
         self.main.grid_columnconfigure(0, weight=1)
-        self.header = tk.Frame(self.main, bg=self.colors["bg"], height=76)
+        self.header = tk.Frame(self.main, bg=c["bg"])
         self.header.grid(row=0, column=0, sticky="ew")
-        self.header.grid_columnconfigure(2, weight=1)
-        self.body = tk.Frame(self.main, bg=self.colors["bg"])
+        self.body = tk.Frame(self.main, bg=c["bg"])
         self.body.grid(row=1, column=0, sticky="nsew")
         self.body.grid_rowconfigure(0, weight=1)
         self.body.grid_columnconfigure(0, weight=1)
-        self.canvas = tk.Canvas(self.body, bg=self.colors["bg"], highlightthickness=0, bd=0)
-        self.scrollbar = ttk.Scrollbar(self.body, orient="vertical", command=self.canvas.yview, style="Vertical.TScrollbar")
+        self.canvas = tk.Canvas(self.body, bg=c["bg"], highlightthickness=0, bd=0, yscrollincrement=24)
+        self.scrollbar = ttk.Scrollbar(self.body, orient="vertical", command=self.canvas.yview)
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
         self.canvas.grid(row=0, column=0, sticky="nsew")
         self.scrollbar.grid(row=0, column=1, sticky="ns")
-        self.page = tk.Frame(self.canvas, bg=self.colors["bg"])
+        self.page = tk.Frame(self.canvas, bg=c["bg"])
         self.page_window = self.canvas.create_window((0, 0), window=self.page, anchor="nw")
-        self.page.bind("<Configure>", lambda _event: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
-        self.canvas.bind("<Configure>", lambda event: self.canvas.itemconfigure(self.page_window, width=event.width))
-        self.page.grid_columnconfigure(0, weight=1)
-        self.page.grid_columnconfigure(1, minsize=266)
-        self.center = tk.Frame(self.page, bg=self.colors["bg"])
-        self.center.grid(row=0, column=0, sticky="nsew", padx=(34, 22), pady=(30, 40))
-        self.rail = tk.Frame(self.page, bg=self.colors["bg"], width=266)
-        self.rail.grid(row=0, column=1, sticky="nsew", padx=(0, 34), pady=(30, 40))
+        self.page.bind("<Configure>", lambda _e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+        self.canvas.bind("<Configure>", lambda e: self.canvas.itemconfigure(self.page_window, width=e.width))
+        self.page.grid_columnconfigure(0, weight=1, minsize=0)
+        self.page.grid_columnconfigure(1, minsize=0)
+        self.center = tk.Frame(self.page, bg=c["bg"])
+        self.center.grid(row=0, column=0, sticky="nsew", padx=(36, 32), pady=(30, 36))
+        self.center.grid_columnconfigure(0, weight=1, minsize=0)
+        self.rail = tk.Frame(self.page, bg=c["bg"], width=226)
+        self.rail.grid(row=0, column=1, sticky="nsew", padx=(0, 30), pady=(34, 36))
         self._build_header()
         self._build_sidebar()
 
     def _build_header(self) -> None:
-        self.header.grid_columnconfigure(0, weight=0)
-        self.header.grid_columnconfigure(1, weight=0)
-        self.header.grid_columnconfigure(2, weight=1)
-        self.header.grid_columnconfigure(3, weight=0)
-        self.header_title = tk.Label(self.header, text="今天", bg=self.colors["bg"], fg=self.colors["text"], font=self.font("display"))
-        self.header_title.grid(row=0, column=0, sticky="w", padx=(34, 10), pady=(22, 0))
-        self.header_caption = tk.Label(self.header, text=today_text(), bg=self.colors["bg"], fg=self.colors["text_soft"], font=self.font("body"))
-        self.header_caption.grid(row=1, column=0, sticky="w", padx=(34, 10), pady=(2, 18))
-        search_wrap = tk.Frame(self.header, bg=self.colors["bg"])
-        search_wrap.grid(row=0, column=2, rowspan=2, sticky="ew", padx=26, pady=23)
-        search_wrap.grid_columnconfigure(0, weight=1)
-        self.search_entry = ttk.Entry(search_wrap, textvariable=self.search_var)
-        self.search_entry.grid(row=0, column=0, sticky="ew", ipady=3)
-        self.search_entry.insert(0, "")
-        self.search_entry.configure(width=32)
-        self.new_button = PillButton(self.header, app=self, text="+  新建待办", command=self.open_new_task, kind="primary", size="md")
-        self.new_button.grid(row=0, column=3, rowspan=2, padx=(0, 34), pady=23, sticky="e")
+        c = self.colors
+        self.header.grid_columnconfigure(1, weight=1, minsize=0)
+        self.header_title = self._label(self.header, "今日清单", 10, c["text_soft"])
+        self.header_title.grid(row=0, column=0, sticky="w", padx=(36, 20), pady=19)
+        self.header_caption = self._label(self.header, "", 9, c["text_soft"])
+        search_wrap = tk.Frame(self.header, bg=c["bg"])
+        search_wrap.grid(row=0, column=1, sticky="ew", padx=(0, 18), pady=16)
+        search_wrap.grid_columnconfigure(0, weight=1, minsize=0)
+        self.search_entry = ttk.Entry(search_wrap, textvariable=self.search_var, width=18, style="Search.TEntry")
+        self.search_entry.grid(row=0, column=0, sticky="ew")
+        self.search_placeholder = self._label(search_wrap, "搜索待办、目标", 9, c["text_soft"], bg=c["surface"])
+        self.search_placeholder.place(x=12, rely=0.5, anchor="w")
+        self.search_placeholder.bind("<Button-1>", lambda _e: self.focus_search())
+        self.search_entry.bind("<FocusIn>", lambda _e: self.search_placeholder.place_forget())
+        self.search_entry.bind("<FocusOut>", lambda _e: self._update_search_hint())
+        self.search_clear = tk.Button(search_wrap, text="×", command=lambda: self.search_var.set(""),
+                                      bg=c["surface"], fg=c["text_soft"], activebackground=c["soft"],
+                                      bd=0, relief="flat", font=self.font("body"), cursor="hand2")
+        self.new_button = PillButton(self.header, app=self, text="＋ 新建待办", command=self.open_new_task, kind="primary")
+        self.new_button.grid(row=0, column=2, padx=(0, 30), pady=16)
+        tk.Frame(self.header, bg=c["line"], height=1).grid(row=1, column=0, columnspan=3, sticky="ew")
+
+    def _update_search_hint(self) -> None:
+        if not hasattr(self, "search_placeholder"):
+            return
+        query = self.search_var.get()
+        if query:
+            self.search_placeholder.place_forget()
+            self.search_clear.place(relx=1, x=-5, rely=0.5, anchor="e")
+        else:
+            self.search_clear.place_forget()
+            if self.focus_get() is not self.search_entry:
+                self.search_placeholder.place(x=12, rely=0.5, anchor="w")
 
     def _build_sidebar(self) -> None:
-        self.sidebar.grid_rowconfigure(10, weight=1)
-        brand = tk.Frame(self.sidebar, bg=self.colors["soft_surface"])
-        brand.grid(row=0, column=0, sticky="ew", padx=20, pady=(26, 22))
+        c = self.colors
+        self.sidebar.grid_rowconfigure(3, weight=1)
+        brand = tk.Frame(self.sidebar, bg=c["soft_surface"])
+        brand.grid(row=0, column=0, sticky="ew", padx=22, pady=(28, 35))
         PigMark(brand, app=self, variant="logo").pack(side="left")
-        brand_text = tk.Frame(brand, bg=self.colors["soft_surface"])
-        brand_text.pack(side="left", padx=10)
-        tk.Label(brand_text, text="日常", bg=self.colors["soft_surface"], fg=self.colors["text"], font=self.font("title")).pack(anchor="w")
-        tk.Label(brand_text, text="PIGGYPLAN · LOCAL FIRST", bg=self.colors["soft_surface"], fg=self.colors["ink_soft"], font=self.font("micro")).pack(anchor="w", pady=(1, 0))
-        self.sidebar_new = PillButton(self.sidebar, app=self, text="+  新建待办", command=self.open_new_task, kind="primary", size="lg")
-        self.sidebar_new.grid(row=1, column=0, sticky="ew", padx=16, pady=(0, 20))
-        self.nav_frame = tk.Frame(self.sidebar, bg=self.colors["soft_surface"])
-        self.nav_frame.grid(row=2, column=0, sticky="new", padx=10)
-        self.nav_buttons: dict[str, tk.Button] = {}
-        self._nav_button("today", "今日清单", 0)
-        self._nav_button("upcoming", "之后安排", 1)
+        copy = tk.Frame(brand, bg=c["soft_surface"])
+        copy.pack(side="left", padx=10)
+        self._label(copy, "PiggyPlan", 13, c["text"], True, bg=c["soft_surface"]).pack(anchor="w")
+        self._label(copy, "把日常慢慢做好", 9, c["text_soft"], bg=c["soft_surface"]).pack(anchor="w", pady=(3, 0))
+        self.nav_frame = tk.Frame(self.sidebar, bg=c["soft_surface"])
+        self.nav_frame.grid(row=1, column=0, sticky="ew", padx=12)
+        self.nav_frame.grid_columnconfigure(0, weight=1)
+        self.nav_buttons = {}
+        self._nav_button("today", "今天", 0, True)
+        self._nav_button("upcoming", "之后", 1)
         self._nav_button("all", "全部待办", 2, True)
-        tk.Frame(self.nav_frame, bg=self.colors["line"], height=1).grid(row=3, column=0, sticky="ew", padx=10, pady=(13, 10))
+        tk.Frame(self.nav_frame, bg=c["line"], height=1).grid(row=3, column=0, sticky="ew", padx=10, pady=18)
         self._nav_button("goals", "长期目标", 4, True)
-        self._nav_button("archive", "完成归档", 5)
-        tk.Frame(self.nav_frame, bg=self.colors["line"], height=1).grid(row=6, column=0, sticky="ew", padx=10, pady=(13, 10))
-        self._nav_button("settings", "偏好设置", 7)
-        footer = tk.Frame(self.sidebar, bg=self.colors["soft_surface"])
-        footer.grid(row=11, column=0, sticky="sew", padx=16, pady=17)
-        footer_card = Card(footer, app=self, tone="surface", stroke=True, padding=(14, 12))
-        footer_card.pack(fill="x")
-        card_bg = footer_card.body.cget("bg")
-        tk.Label(footer_card.body, text="你的事都装在这只猪身上", bg=card_bg, fg=self.colors["ink"], font=self.font("body")).pack(anchor="w")
-        tk.Label(footer_card.body, text="只写本机，不联网", justify="left", bg=card_bg, fg=self.colors["ink_soft"], font=self.font("meta")).pack(anchor="w", pady=(2, 0))
-        tk.Label(footer, text=f"版本 {APP_VERSION}", bg=self.colors["soft_surface"], fg=self.colors["ink_soft"], font=self.font("micro")).pack(anchor="w", pady=(9, 0))
+        self._nav_button("archive", "归档", 5)
+        self._nav_button("settings", "设置", 6)
+        footer = tk.Frame(self.sidebar, bg=c["soft_surface"])
+        footer.grid(row=4, column=0, sticky="sew", padx=24, pady=24)
+        self._label(footer, "Ctrl + N  快速新建", 9, c["text_soft"], bg=c["soft_surface"]).pack(anchor="w")
+        self._label(footer, "所有记录只保存在本机", 9, c["text_soft"], bg=c["soft_surface"]).pack(anchor="w", pady=(9, 0))
 
     def _nav_button(self, view: str, text: str, row: int, show_count: bool = False) -> None:
-        colors = self.colors
-        frame = tk.Frame(self.nav_frame, bg=colors["soft_surface"])
-        frame.grid(row=row, column=0, sticky="ew", pady=2)
+        c = self.colors
+        frame = tk.Frame(self.nav_frame, bg=c["soft_surface"])
+        frame.grid(row=row, column=0, sticky="ew", pady=3)
         frame.grid_columnconfigure(1, weight=1)
-        indicator = tk.Canvas(frame, width=4, height=20, bg=colors["soft_surface"], highlightthickness=0, bd=0)
-        indicator.grid(row=0, column=0, padx=(2, 9))
-        button = tk.Button(frame, text=text, command=lambda v=view: self.navigate(v), anchor="w", relief="flat", bd=0, padx=14, pady=10, font=self.font("body"), cursor="hand2", bg=colors["soft_surface"], fg=colors["text_soft"], activebackground=colors["soft_surface"])
+        icons = {"today": "◷", "upcoming": "↗", "all": "≡", "goals": "◎", "archive": "▤", "settings": "⚙"}
+        icon = self._label(frame, icons[view], 14, c["text_soft"], bg=c["soft_surface"])
+        icon.grid(row=0, column=0, padx=(12, 6))
+        button = tk.Button(frame, text=text, command=lambda: self.navigate(view), anchor="w", relief="flat", bd=0,
+                           padx=7, pady=12, font=self.font("body"), cursor="hand2", bg=c["soft_surface"],
+                           fg=c["text_soft"], activebackground=c["soft"], activeforeground=c["strong"])
         button.grid(row=0, column=1, sticky="ew")
         if show_count:
-            count = tk.Label(frame, text="", width=4, font=self.font("micro"), padx=4, pady=2, bg=colors["soft_surface"])
-            count.grid(row=0, column=2, padx=(0, 8))
-            button._count_label = count  # type: ignore[attr-defined]
-        button._indicator = indicator  # type: ignore[attr-defined]
+            count = self._label(frame, "", 9, c["text_soft"], bg=c["soft_surface"])
+            count.grid(row=0, column=2, padx=(3, 12))
+            button._count_label = count
+        button._nav_frame = frame
+        button._nav_icon = icon
         self.nav_buttons[view] = button
 
-    def _button(self, parent: tk.Misc, text: str, command, kind: str = "ghost", width: int | None = None) -> tk.Button:
-        colors = self.colors
-        palettes = {
-            "primary": (colors["strong"], "#FFFFFF", colors["accent"]),
-            "ghost": (colors["soft_surface"], colors["text_soft"], colors["soft"]),
-            "outline": (colors["soft"], colors["strong"], colors["accent"]),
-            "danger": ("#FFF0F0", "#C9575B", "#F3D4D4"),
-            "link": (colors["bg"], colors["strong"], colors["soft"]),
-        }
-        bg, fg, active = palettes.get(kind, palettes["ghost"])
-        button = tk.Button(parent, text=text, command=command, relief="flat", bd=0, bg=bg, fg=fg, activebackground=active, activeforeground=fg, font=("Microsoft YaHei UI", 9, "bold" if kind in ("primary", "link") else "normal"), cursor="hand2", padx=13, pady=8)
+    def _button(self, parent: tk.Misc, text: str, command, kind: str = "ghost", width: int | None = None):
+        button = PillButton(parent, app=self, text=text, command=command, kind=kind, size="sm")
         if width:
-            button.configure(width=width)
+            button.configure(width=width * 10)
         return button
 
     def _label(self, parent: tk.Misc, text: str, size: int = 10, color: str | None = None, bold: bool = False, **kwargs) -> tk.Label:
-        if size <= 9:
-            # CJK 小字号加粗会糊；层级交给颜色承担（micro 角色的 YaHei 例外仅限组件层）。
-            bold = False
-            size = max(size, 8)
-        family = self.font("meta")[0]
-        return tk.Label(parent, text=text, bg=kwargs.pop("bg", self.colors["bg"]), fg=color or self.colors["text"], font=(family, size, "bold" if bold else "normal"), **kwargs)
+        size = max(9, size)
+        family = self.font("body")[0]
+        return tk.Label(parent, text=text, bg=kwargs.pop("bg", self.colors["bg"]),
+                        fg=color or self.colors["text"], font=(family, size, "bold" if bold and size > 9 else "normal"), **kwargs)
 
     def _bind_shortcuts(self) -> None:
         self.bind_all("<Control-n>", lambda _event: self.open_new_task())
@@ -273,12 +299,38 @@ class PiggyPlanApp(
         self.bind_all("<Control-Key-1>", lambda _event: self.navigate("today"))
         self.bind_all("<Control-Key-2>", lambda _event: self.navigate("upcoming"))
         self.bind_all("<Control-Key-3>", lambda _event: self.navigate("all"))
-        self.bind_all("<Escape>", lambda _event: self.destroy_top_level())
+        self.bind_all("<Escape>", self._escape)
+        self.bind_all("<MouseWheel>", self._on_mousewheel, add="+")
+
+    def _escape(self, _event=None) -> None:
+        if any(isinstance(child, tk.Toplevel) for child in self.winfo_children()):
+            self.destroy_top_level()
+        elif self.search_var.get():
+            self.search_var.set("")
+
+    def _on_mousewheel(self, event):
+        widget = event.widget
+        if isinstance(widget, (tk.Text, tk.Listbox)):
+            return
+        current = widget
+        while current is not None:
+            if isinstance(current, tk.Toplevel) and hasattr(current, "content_canvas"):
+                return current.scroll(event)
+            if current is self.canvas:
+                units = -int(event.delta / 120) or (-1 if event.delta > 0 else 1)
+                self.canvas.yview_scroll(units * 3, "units")
+                return "break"
+            current = getattr(current, "master", None)
 
     def _search_changed(self, *_args) -> None:
         if self._search_after:
             self.after_cancel(self._search_after)
-        self._search_after = self.after(150, self.render)
+        self._update_search_hint()
+        self._search_after = self.after(150, self._render_search_change)
+
+    def _render_search_change(self) -> None:
+        self._search_after = None
+        self.render()
 
     def focus_search(self) -> None:
         self.search_entry.focus_set()
@@ -298,6 +350,7 @@ class PiggyPlanApp(
             pass
         self.lift()
         self.focus_force()
+        self.render()
 
     def show_tray_menu(self) -> None:
         if not self.integration.tray_available:
@@ -328,7 +381,7 @@ class PiggyPlanApp(
         """Keep one SQLite snapshot per day and retain the latest 14 snapshots."""
 
         try:
-            folder = app_backup_dir()
+            folder = self.db.path.parent / "backups"
             folder.mkdir(parents=True, exist_ok=True)
             destination = folder / f"{date.today().isoformat()}.db"
             if not destination.exists():
@@ -365,12 +418,16 @@ class PiggyPlanApp(
             return
         if not messagebox.askyesno("覆盖当前数据", "恢复备份会覆盖当前任务、目标、标签和模板。是否继续？", parent=self):
             return
+        imported = False
         try:
-            before = app_backup_dir() / f"before-import-{datetime.now().strftime('%Y%m%d-%H%M%S')}.db"
+            before = self.db.path.parent / "backups" / f"before-import-{datetime.now().strftime('%Y%m%d-%H%M%S')}.db"
             self.db.backup_database(before)
             self.db.import_json(path)
+            imported = True
             self.settings = self.db.settings()
-            self.theme_key = self.settings.get("theme", "pink") if self.settings.get("theme", "pink") in THEME_KEYS else THEME_KEYS[0]
+            self.theme_key = "pink"
+            self.settings["theme"] = "pink"
+            self.db.set_setting("theme", "pink")
             self.selected_goal_id = None
             self.selected_task_ids.clear()
             if self.integration.available:
@@ -379,13 +436,14 @@ class PiggyPlanApp(
             self.show_toast("备份已恢复")
         except Exception as error:
             log_event("JSON import failed", error)
-            messagebox.showerror("恢复失败", "备份文件无效或无法恢复；当前数据未被覆盖。", parent=self)
+            detail = "数据已恢复，界面刷新未完成。重新打开软件后查看。" if imported else "备份文件无效或无法恢复；当前数据未被覆盖。"
+            messagebox.showerror("恢复后刷新失败" if imported else "恢复失败", detail, parent=self)
 
     def clear_all(self) -> None:
         if not messagebox.askyesno("清空所有数据", "确定清空全部任务、目标、标签和模板吗？这一步可以通过恢复备份找回。", parent=self):
             return
         try:
-            before = app_backup_dir() / f"before-clear-{datetime.now().strftime('%Y%m%d-%H%M%S')}.db"
+            before = self.db.path.parent / "backups" / f"before-clear-{datetime.now().strftime('%Y%m%d-%H%M%S')}.db"
             self.db.backup_database(before)
             self.db.clear_all()
             self.selected_goal_id = None
@@ -413,15 +471,26 @@ class PiggyPlanApp(
         self.selected_goal_id = None
         self.selected_task_ids.clear()
         self.search_var.set("")
+        if self._search_after:
+            self.after_cancel(self._search_after)
+            self._search_after = None
+        if self._resize_after:
+            self.after_cancel(self._resize_after)
+            self._resize_after = None
         self.render()
 
     def _window_resized(self, event: tk.Event) -> None:
         if event.widget is not self:
             return
-        compact = int(event.width) < 1080
-        if compact == self._compact_window:
+        width = int(event.width)
+        band = (width < 1040, width < 1280)
+        if band == getattr(self, "_layout_band", None):
             return
-        self._compact_window = compact
+        self._layout_band = band
+        self._compact_window = band[1]
+        board_visible = (self.view == "all" and self.all_mode == "board") or (self.selected_goal_id and self.goal_mode == "board")
+        if self.view not in {"today", "upcoming"} and not board_visible:
+            return
         if self._resize_after:
             self.after_cancel(self._resize_after)
         self._resize_after = self.after(80, self.render)
@@ -430,6 +499,7 @@ class PiggyPlanApp(
         current = today_key()
         if current != self._natural_day:
             self._natural_day = current
+            self.create_daily_backup()
             if self.state() != "withdrawn":
                 self.render()
         if self.winfo_exists():
@@ -443,6 +513,8 @@ class PiggyPlanApp(
         self.db.set_setting("geometry", self.geometry())
         self.db.set_setting("last_view", self.view)
         self.db.set_setting("theme", self.theme_key)
+        for callback in self.tk.call("after", "info"):
+            self.tk.call("after", "cancel", callback)
         self.integration.destroy()
         self.db.close()
         self.destroy()
@@ -452,22 +524,47 @@ class PiggyPlanApp(
             child.destroy()
 
     def render(self) -> None:
+        position = self.canvas.yview()[0]
+        query = self.search_var.get().strip()
+        page_key = (self.view, self.selected_goal_id, query)
+        keep_position = getattr(self, "_rendered_page", None) == page_key
+        self._rendered_page = page_key
         self._configure_styles()
         self._refresh_sidebar()
-        query = self.search_var.get().strip()
-        if self.selected_goal_id:
-            title, caption = "目标详情", "把目标落到每一个可以执行的动作上"
-            show_rail = False
-        elif query:
+        self._update_search_hint()
+        if self.selected_task_ids:
+            if query:
+                visible = self.db.list_tasks(include_completed=True, status="all", query=query)
+            elif self.view == "all":
+                status = "all" if self.all_mode == "board" else self.filter_values["status"]
+                visible = self._apply_task_filters(self.db.list_tasks(
+                    include_completed=status != "todo", status=status,
+                    category=self.filter_values["category"], priority=self.filter_values["priority"]))
+            else:
+                visible = []
+            self.selected_task_ids.intersection_update(task["id"] for task in visible)
+        if query:
             title, caption = "搜索", f"正在查找「{query}」"
+            show_rail = False
+        elif self.selected_goal_id:
+            title, caption = "目标详情", "把目标落到每一个可以执行的动作上"
             show_rail = False
         else:
             title_map = {"today": "今天", "upcoming": "之后", "all": "全部", "goals": "长期目标", "archive": "归档", "settings": "设置"}
             caption_map = {"today": date_text(today_key(), True), "upcoming": "把未来安排看得清楚", "all": "所有未完成事项的全局视图", "goals": "让长期方向有清晰的下一步", "archive": "回看已经完成的事情", "settings": "让软件更贴合你的工作方式"}
             title, caption = title_map.get(self.view, "今天"), caption_map.get(self.view, date_text(today_key(), True))
-            show_rail = self.view in {"today", "upcoming", "all"} and not self._compact_window
+            show_rail = self.view in {"today", "upcoming"} and not self._compact_window
         self.header_title.configure(text=title)
         self.header_caption.configure(text=caption)
+        if self.selected_goal_id and not query:
+            self.new_button.set_text("＋ 添加待办")
+            self.new_button.command = lambda: self.open_new_task(goal_id=self.selected_goal_id)
+        elif self.view == "goals" and not query:
+            self.new_button.set_text("＋ 新建目标")
+            self.new_button.command = self.open_new_goal
+        else:
+            self.new_button.set_text("＋ 新建待办")
+            self.new_button.command = self.open_new_task
         self.clear(self.center)
         self.clear(self.rail)
         if query:
@@ -487,19 +584,25 @@ class PiggyPlanApp(
         else:
             self.render_settings(self.center)
         if show_rail:
-            self.page.grid_columnconfigure(1, minsize=250)
+            self.page.grid_columnconfigure(1, minsize=246)
             self.render_rail(self.rail)
             self.rail.grid()
         else:
             self.page.grid_columnconfigure(1, minsize=0)
             self.rail.grid_remove()
-        self.canvas.yview_moveto(0)
+        self.update_idletasks()
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        self.canvas.yview_moveto(position if keep_position else 0)
 
     def _refresh_sidebar(self) -> None:
         colors = self.colors
         for view, button in self.nav_buttons.items():
             active = (view == "goals" and self.selected_goal_id) or (view == self.view and not self.search_var.get().strip() and not self.selected_goal_id)
-            button.configure(bg=colors["soft"] if active else colors["soft_surface"], fg=colors["ink"] if active else colors["text_soft"], activebackground=colors["soft"] if active else colors["soft_surface"], font=("Microsoft YaHei UI", 10, "bold" if active else "normal"))
+            background = colors["soft"] if active else colors["soft_surface"]
+            foreground = colors["strong"] if active else colors["text_soft"]
+            button.configure(bg=background, fg=foreground, activebackground=colors["soft"], font=self.font("body"))
+            button._nav_frame.configure(bg=background)
+            button._nav_icon.configure(bg=background, fg=foreground)
             indicator = getattr(button, "_indicator", None)
             if indicator is not None:
                 indicator.delete("all")
@@ -508,7 +611,9 @@ class PiggyPlanApp(
             count_label = getattr(button, "_count_label", None)
             if count_label:
                 if view == "today":
-                    count_label.configure(text=str(len(self.db.list_tasks(mode="default"))))
+                    count_label.configure(text=str(sum(
+                        bool(task.get("planned_date")) and task["planned_date"] <= today_key()
+                        for task in self.db.list_tasks())))
                 elif view == "all":
                     count_label.configure(text=str(len(self.db.list_tasks())))
                 elif view == "goals":

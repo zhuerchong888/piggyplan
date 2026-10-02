@@ -5,6 +5,7 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk
 from typing import Any
+from ..util import category_label
 
 
 class ArchiveMixin:
@@ -17,13 +18,37 @@ class ArchiveMixin:
         controls = tk.Frame(parent, bg=self.colors["bg"])
         controls.grid(row=2, column=0, sticky="ew", pady=(0, 14))
         query_var = tk.StringVar(value=self.archive_query)
-        query_var.trace_add("write", lambda *_args: self._archive_query_changed(query_var.get()))
-        ttk.Entry(controls, textvariable=query_var, width=30).pack(side="left")
-        category_var = tk.StringVar(value=getattr(self, "archive_category", "all"))
-        category = ttk.Combobox(controls, textvariable=category_var, values=["全部分类", "工作", "生活"], state="readonly", width=10)
+        query_var.trace_add("write", lambda *_args: self._refresh_archive_query(query_var.get()))
+        self._archive_entry = ttk.Entry(controls, textvariable=query_var, width=30)
+        self._archive_entry.pack(side="left")
+        category_choices = {"全部分类": "all", category_label("work"): "work", category_label("life"): "life"}
+        category_name = next((label for label, value in category_choices.items() if value == getattr(self, "archive_category", "all")), "全部分类")
+        category_var = tk.StringVar(value=category_name)
+        category = ttk.Combobox(controls, textvariable=category_var, values=list(category_choices), state="readonly", width=10)
         category.pack(side="right")
-        category.bind("<<ComboboxSelected>>", lambda _event: self._set_archive_category({"全部分类": "all", "工作": "work", "生活": "life"}.get(category_var.get(), "all")))
+        category.bind("<<ComboboxSelected>>", lambda _event: self._set_archive_category(category_choices.get(category_var.get(), "all")))
         self._label(controls, "筛选", 8, self.colors["text_faint"], True, bg=self.colors["bg"]).pack(side="right", padx=(0, 7))
+        self._archive_results = tk.Frame(parent, bg=self.colors["bg"])
+        self._archive_results.grid(row=3, column=0, sticky="ew")
+        self._archive_results.columnconfigure(0, weight=1)
+        self._render_archive_results()
+
+    def _refresh_archive_query(self, value: str) -> None:
+        """Update only results, keeping the active search widget and its cursor."""
+
+        self.archive_query = value
+        pending = getattr(self, "_archive_search_after", None)
+        if pending:
+            self.after_cancel(pending)
+        self._archive_search_after = self.after(150, self._render_archive_results)
+
+    def _render_archive_results(self) -> None:
+        self._archive_search_after = None
+        parent = getattr(self, "_archive_results", None)
+        if parent is None or not parent.winfo_exists():
+            return
+        for child in parent.winfo_children():
+            child.destroy()
         if self.archive_tab == "tasks":
             tasks = self.db.list_tasks(include_completed=True, status="completed", category=getattr(self, "archive_category", "all"), query=self.archive_query)
             if not tasks:
@@ -32,7 +57,7 @@ class ArchiveMixin:
             for task in tasks:
                 self.archive_task_row(parent, task)
         else:
-            goals = [goal for goal in self.db.list_goals(status="achieved", category=getattr(self, "archive_category", "all"))]
+            goals = self.db.list_goals(status="achieved", category=getattr(self, "archive_category", "all"), query=self.archive_query)
             if not goals:
                 self.empty_state(parent, "还没有已达成目标", "目标达成后会永久保留在这里。")
                 return
@@ -49,7 +74,7 @@ class ArchiveMixin:
         self._label(left, task["title"], 10, self.colors["text"], True, bg=self.colors["surface"], anchor="w").pack(fill="x")
         goal_label = f"  ·  {task['goal_title']}" if task.get("goal_title") else "  ·  独立待办"
         self._label(left, f"✓  实际完成 {task['completed_at'][:10] if task.get('completed_at') else '未知日期'}   {goal_label}", 8, self.colors["text_faint"], False, bg=self.colors["surface"], anchor="w").pack(fill="x", pady=(4, 0))
-        self.badge(body, "已完成", "#E8F5EE", "#4A9B72").pack(side="right", padx=(10, 0))
+        self.badge(body, "已完成", "#E8F5EE", self.colors["success_ink"]).pack(side="right", padx=(10, 0))
         self._button(body, "查看", lambda tid=task["id"]: self.open_task_dialog(tid), "ghost").pack(side="right")
 
     def archive_goal_row(self, parent: tk.Misc, goal: dict[str, Any]) -> None:
@@ -61,5 +86,5 @@ class ArchiveMixin:
         left.pack(side="left", fill="x", expand=True)
         self._label(left, goal["title"], 10, self.colors["text"], True, bg=self.colors["surface"], anchor="w").pack(fill="x")
         self._label(left, f"✓  达成于 {goal['achieved_at'][:10] if goal.get('achieved_at') else '未知日期'}   ·   {goal['completed']} / {goal['total']} 个待办", 8, self.colors["text_faint"], False, bg=self.colors["surface"], anchor="w").pack(fill="x", pady=(4, 0))
-        self.badge(body, "已达成", "#E8F5EE", "#4A9B72").pack(side="right")
+        self.badge(body, "已达成", "#E8F5EE", self.colors["success_ink"]).pack(side="right")
         self._button(body, "查看", lambda gid=goal["id"]: self.open_goal_detail(gid), "ghost").pack(side="right", padx=(0, 8))

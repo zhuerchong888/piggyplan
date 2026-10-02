@@ -41,7 +41,7 @@ class QuickAddMixin:
         properties.grid(row=4, column=0, sticky="ew", padx=2, pady=(14, 14))
         self._label(properties, "分类", 8, self.colors["text_soft"], True, bg=self.colors["surface"]).pack(side="left")
         category_var = tk.StringVar(value=category_label(self.settings.get("default_category", "work")))
-        ttk.Combobox(properties, textvariable=category_var, values=["工作", "生活"], state="readonly", width=8).pack(side="left", padx=(7, 20))
+        ttk.Combobox(properties, textvariable=category_var, values=[category_label(key) for key in ("work", "life")], state="readonly", width=8).pack(side="left", padx=(7, 20))
         self._label(properties, "优先级", 8, self.colors["text_soft"], True, bg=self.colors["surface"]).pack(side="left")
         priority_var = tk.StringVar(value="普通")
         ttk.Combobox(properties, textvariable=priority_var, values=["普通", "高"], state="readonly", width=8).pack(side="left", padx=(7, 0))
@@ -64,7 +64,7 @@ class QuickAddMixin:
                 error.configure(text="日期格式应为 YYYY-MM-DD")
                 date_entry.focus_set()
                 return
-            self.db.create_task(title, category="life" if category_var.get() == "生活" else "work", priority="high" if priority_var.get() == "高" else "normal", planned_date=planned)
+            self.db.create_task(title, category="life" if category_var.get() == category_label("life") else "work", priority="high" if priority_var.get() == "高" else "normal", planned_date=planned)
             close()
             if self.state() != "withdrawn":
                 self.render()

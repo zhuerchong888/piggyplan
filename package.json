@@ -1,13 +1,14 @@
 {
   "name": "piggyplan",
-  "version": "0.1.0",
+  "version": "1.1.1",
   "private": true,
   "description": "个人待办与长期目标管理系统",
   "type": "module",
   "scripts": {
     "start": "python piggyplan_desktop.py",
     "desktop": "python piggyplan_desktop.py",
-    "test": "python piggyplan_desktop.py --self-test",
+    "test": "python -B -m unittest discover -s tests -v",
+    "test:data": "python piggyplan_desktop.py --self-test",
     "test:gui": "python piggyplan_desktop.py --gui-smoke",
     "assets": "python tools/build_assets.py",
     "shots": "python tools/shoot.py",

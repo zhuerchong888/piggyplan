@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import tkinter as tk
 
-from ..tokens import RADIUS, SPACE
-from .shape import heart, mix, snout, soft_round_rect
+from ..tokens import RADIUS
+from .shape import heart, mix, round_rect, snout, soft_round_rect
 
 
 class Card(tk.Canvas):
@@ -28,6 +28,8 @@ class Card(tk.Canvas):
         self.tone = tone
         self.stroke = stroke
         self.fixed = fixed  # True：几何管理器决定画布尺寸（对话框），body 不反调尺寸
+        self._hovered = False
+        self._hover_after = None
         self.backdrop = parent.cget("bg") or app.colors["bg"]
         super().__init__(parent, bg=self.backdrop, highlightthickness=0, bd=0)
         self.body = tk.Frame(self, bg=self._fill())
@@ -39,7 +41,7 @@ class Card(tk.Canvas):
             # 指针移进 body 的子控件会触发 body 的 <Leave>，直接反色会闪烁；
             # Leave 后延迟确认指针确实离开了整块画布再取消 hover。
             self.body.bind("<Enter>", lambda _e: self.hover(True), add="+")
-            self.body.bind("<Leave>", lambda _e: self.after(10, self._maybe_unhover), add="+")
+            self.body.bind("<Leave>", self._schedule_unhover, add="+")
 
     def _fill(self, hovered: bool = False) -> str:
         colors = self.app.colors
@@ -47,9 +49,15 @@ class Card(tk.Canvas):
                  "accent": colors["accent"], "wash": colors["wash"],
                  "bg": colors["bg"], "shell": colors["surface"]}
         base = table.get(self.tone, colors["surface"])
-        return mix(base, colors["accent"], 0.35) if hovered and self.tone == "surface" else base
+        return mix(base, colors["accent"], 0.20) if hovered and self.tone == "surface" else base
+
+    def _schedule_unhover(self, _event) -> None:
+        if self._hover_after is not None:
+            self.after_cancel(self._hover_after)
+        self._hover_after = self.after(10, self._maybe_unhover)
 
     def _maybe_unhover(self) -> None:
+        self._hover_after = None
         x, y = self.winfo_pointerxy()
         inside = (self.winfo_rootx() <= x < self.winfo_rootx() + self.winfo_width()
                   and self.winfo_rooty() <= y < self.winfo_rooty() + self.winfo_height())
@@ -57,14 +65,37 @@ class Card(tk.Canvas):
             self.hover(False)
 
     def hover(self, on: bool) -> None:
-        self.body.configure(bg=self._fill(on))
-        self.redraw(self._fill(on))
+        previous = self.body.cget("bg")
+        self._hovered = on
+        fill = self._fill(on)
+        if previous == fill:
+            return
+
+        def recolor(widget) -> None:
+            try:
+                matches = widget.cget("bg").lower() == previous.lower()
+            except tk.TclError:
+                matches = False
+            if matches:
+                widget.configure(bg=fill)
+                if hasattr(widget, "backdrop"):
+                    widget.backdrop = fill
+                    widget._last_paint = None
+                    redraw = getattr(widget, "redraw", None)
+                    if redraw:
+                        redraw()
+            for child in widget.winfo_children():
+                recolor(child)
+
+        recolor(self.body)
+        self.redraw(fill)
 
     def redraw(self, fill: str | None = None) -> None:
         width, height = self.winfo_width(), self.winfo_height()
         if width <= 4 or height <= 4:
             return
-        paint = (width, height, fill or self._fill(), self.stroke)
+        fill = fill or self._fill(self._hovered)
+        paint = (width, height, fill, self.stroke)
         if paint == getattr(self, "_last_paint", None):
             return  # <Configure> 链会触发多次 redraw；尺寸与颜色没变就别重建多边形
         self._last_paint = paint
@@ -72,7 +103,7 @@ class Card(tk.Canvas):
             if item != self._window:
                 self.delete(item)
         soft_round_rect(self, 2, 2, width - 2, height - 2, self.radius,
-                        fill or self._fill(), backdrop=self.backdrop,
+                        fill, backdrop=self.backdrop,
                         stroke=self.app.colors["shell"] if self.stroke else None)
         # Tcl 的 lower 一次只接受一个 item；逐个下移并倒序迭代，保持创建时的层级。
         for item_id in reversed([i for i in self.find_all() if i != self._window]):
@@ -104,21 +135,26 @@ class Card(tk.Canvas):
 
     def _follow_canvas(self, event) -> None:
         # 被 grid(sticky="ew") 拉伸时，让 body 跟随宽度，从而支持 wraplength 自适应。
-        self.after_idle(self.redraw)
         if self.fixed:
             # 对话框等固定几何场景：body 铺满画布内部，页脚才能钉在底边。
-            self.after_idle(lambda: self.itemconfigure(
+            self.itemconfigure(
                 self._window, width=max(1, event.width - 2 * self.padding_x),
-                height=max(1, event.height - 2 * self.padding_y)))
+                height=max(1, event.height - 2 * self.padding_y))
         else:
-            self.after_idle(lambda: self.itemconfigure(
-                self._window, width=max(1, event.width - 2 * self.padding_x)))
+            self.itemconfigure(self._window, width=max(1, event.width - 2 * self.padding_x))
+        self.redraw()
+
+    def destroy(self) -> None:
+        if self._hover_after is not None:
+            self.after_cancel(self._hover_after)
+            self._hover_after = None
+        super().destroy()
 
 
 class PillButton(tk.Canvas):
-    """胶囊按钮。Tk 的 Button 画不出圆角，因此自绘并自己接管键盘/鼠标语义。"""
+    """统一圆角按钮，保留原生 Tab、Enter 与空格操作。"""
 
-    _KINDS = ("primary", "soft", "ghost", "danger")
+    _KINDS = ("primary", "soft", "outline", "ghost", "link", "danger")
 
     def __init__(self, parent, *, app, text: str, command=None,
                  kind: str = "primary", size: str = "md") -> None:
@@ -126,21 +162,24 @@ class PillButton(tk.Canvas):
         self.kind = kind
         self.size = size
         self.command = command
-        height = {"sm": 28, "md": 36, "lg": 44}[size]
+        height = {"sm": 30, "md": 36, "lg": 40}[size]
         self.backdrop = parent.cget("bg") or app.colors["bg"]
         super().__init__(parent, bg=self.backdrop, height=height, width=1,
                          highlightthickness=0, bd=0, cursor="hand2")
         self._text = self.create_text(0, 0, anchor="center", text=text)
         self._hover = False
         self._pressed = False
+        self._focused = False
         self.bind("<Configure>", lambda _e: self.redraw())
         self.bind("<Enter>", lambda _e: self._set_hover(True))
         self.bind("<Leave>", lambda _e: self._set_hover(False))
         self.bind("<Button-1>", self._press)
         self.bind("<ButtonRelease-1>", self._release)
         self.configure(takefocus=True)
-        self.bind("<Return>", lambda _e: self.invoke())
-        self.bind("<space>", lambda _e: self.invoke())
+        self.bind("<Return>", self._activate)
+        self.bind("<space>", self._activate)
+        self.bind("<FocusIn>", lambda _e: self._set_focus(True))
+        self.bind("<FocusOut>", lambda _e: self._set_focus(False))
         self._fit_to_text()
 
     def _font(self):
@@ -157,21 +196,23 @@ class PillButton(tk.Canvas):
     def _palette(self, hovered: bool) -> tuple[str, str]:
         colors = self.app.colors
         if self.kind == "primary":
-            # 按钮文字也是文字：底色用 ink 级（>=4.5:1），accentDeep 只配图形。
-            fill = mix(colors["ink"], "#000000", 0.10 if hovered else 0.0)
+            fill = mix(colors["strong"], colors["ink"], 0.10 if hovered else 0.0)
             return fill, "#FFFFFF"
         if self.kind == "soft":
             return (colors["soft"] if not hovered else mix(colors["soft"], colors["accent"], 0.6),
                     colors["ink"])
         if self.kind == "danger":
-            return ("#FFF0F0" if not hovered else "#FBE0E0"), "#C9575B"
-        return (colors["bg"] if not hovered else colors["surface_soft"]), colors["ink_soft"]
+            return (colors["soft"] if not hovered else colors["accent"]), colors["high_ink"]
+        if self.kind in ("outline", "link"):
+            return (self.backdrop if not hovered else colors["surface_soft"]), colors["strong"]
+        return (self.backdrop if not hovered else colors["surface_soft"]), colors["ink_soft"]
 
     def redraw(self) -> None:
         width, height = self.winfo_width(), self.winfo_height()
         if width <= 4 or height <= 4:
             return
-        state = (width, height, self._hover, self._pressed, self.itemcget(self._text, "text"))
+        state = (width, height, self._hover, self._pressed, self._focused,
+                 self.backdrop, self.itemcget(self._text, "text"))
         if state == getattr(self, "_last_paint", None):
             return
         self._last_paint = state
@@ -179,8 +220,13 @@ class PillButton(tk.Canvas):
             if item != self._text:
                 self.delete(item)
         fill, foreground = self._palette(self._hover or self._pressed)
-        soft_round_rect(self, 2, 2, width - 2, height - 2, min(RADIUS["pill"], height // 2),
-                        fill, backdrop=self.backdrop)
+        radius = min(RADIUS["control"], height // 2)
+        soft_round_rect(self, 3, 3, width - 3, height - 3, radius, fill, backdrop=self.backdrop,
+                        stroke=self.app.colors["line_strong"] if self.kind == "outline" else None,
+                        stroke_width=2)
+        if self._focused:
+            round_rect(self, 1, 1, width - 1, height - 1, radius + 1,
+                       fill="", outline=self.app.colors["strong"], width=1, tags="focus")
         self.coords(self._text, width / 2, height / 2)
         self.itemconfigure(self._text, fill=foreground, font=self._font())
         self.tag_raise(self._text)
@@ -191,16 +237,29 @@ class PillButton(tk.Canvas):
             self._pressed = False
         self.redraw()
 
-    def _press(self, _event) -> None:
+    def _press(self, _event) -> str:
         self._pressed = True
         self.focus_set()
         self.redraw()
+        return "break"
 
-    def _release(self, event) -> None:
+    def _release(self, event) -> str:
         if self._pressed:
             self._pressed = False
             self.redraw()
-            self.invoke()
+            if 0 <= event.x < self.winfo_width() and 0 <= event.y < self.winfo_height():
+                self.invoke()
+        return "break"
+
+    def _set_focus(self, focused: bool) -> None:
+        self._focused = focused
+        if not focused:
+            self._pressed = False
+        self.redraw()
+
+    def _activate(self, _event) -> str:
+        self.invoke()
+        return "break"
 
     def invoke(self) -> None:
         if self.command:
@@ -270,22 +329,52 @@ class SnoutIcon(tk.Canvas):
 
 
 class CheckCircle(tk.Canvas):
-    """自绘圆形勾选：完成 = ink 圆 + 白勾；未完成 = soft 圆点。"""
+    """可用键盘勾选的圆形控件，未完成时仍有明确轮廓。"""
 
     def __init__(self, parent, *, app, completed: bool = False, command=None, size: int = 22) -> None:
         self.app = app
         self.completed = completed
         self.command = command
         self.size = size
+        self._focused = False
+        self._pressed = False
         self.backdrop = parent.cget("bg") or app.colors["surface"]
         super().__init__(parent, bg=self.backdrop, width=size, height=size,
-                         highlightthickness=0, bd=0, cursor="hand2")
-        self.bind("<Button-1>", self._click)
+                         highlightthickness=0, bd=0, cursor="hand2", takefocus=True)
+        self.bind("<Button-1>", self._press)
+        self.bind("<ButtonRelease-1>", self._release)
+        self.bind("<Return>", self._activate)
+        self.bind("<space>", self._activate)
+        self.bind("<FocusIn>", lambda _e: self._set_focus(True))
+        self.bind("<FocusOut>", lambda _e: self._set_focus(False))
+        self.bind("<Leave>", lambda _e: setattr(self, "_pressed", False))
         self._draw()
 
-    def _click(self, _event) -> None:
+    def invoke(self) -> None:
         if self.command:
             self.command()
+
+    def _activate(self, _event) -> str:
+        self.invoke()
+        return "break"
+
+    def _press(self, _event) -> str:
+        self._pressed = True
+        self.focus_set()
+        return "break"
+
+    def _release(self, event) -> str:
+        pressed = self._pressed
+        self._pressed = False
+        if pressed and 0 <= event.x < self.winfo_width() and 0 <= event.y < self.winfo_height():
+            self.invoke()
+        return "break"
+
+    def _set_focus(self, focused: bool) -> None:
+        self._focused = focused
+        if not focused:
+            self._pressed = False
+        self._draw()
 
     def set_completed(self, completed: bool) -> None:
         self.completed = completed
@@ -295,80 +384,15 @@ class CheckCircle(tk.Canvas):
         self.delete("all")
         size = self.size
         colors = self.app.colors
-        radius = size // 2 - 1
+        if self._focused:
+            self.create_oval(1, 1, size - 1, size - 1, outline=colors["strong"], width=1, tags="focus")
+        self.create_oval(3, 3, size - 3, size - 3,
+                         fill=colors["strong"] if self.completed else self.backdrop,
+                         outline=colors["strong"] if self.completed else mix(colors["strong"], self.backdrop, 0.30),
+                         width=1.5, tags="indicator")
         if self.completed:
-            soft_round_rect(self, 1, 1, size - 1, size - 1, radius, colors["ink"], backdrop=self.backdrop)
-            self.create_line(size * 0.28, size * 0.53, size * 0.44, size * 0.69, size * 0.73, size * 0.32,
+            self.create_line(size * 0.30, size * 0.51, size * 0.45, size * 0.64, size * 0.70, size * 0.36,
                              fill="#FFFFFF", width=2, capstyle="round", joinstyle="round", smooth=True)
-        else:
-            soft_round_rect(self, 1, 1, size - 1, size - 1, radius, colors["soft"], backdrop=self.backdrop)
 
-
-class CheckCircle(tk.Canvas):
-    """自绘圆形勾选：完成 = ink 圆 + 白勾；未完成 = soft 圆点。"""
-
-    def __init__(self, parent, *, app, completed: bool = False, command=None, size: int = 22) -> None:
-        self.app = app
-        self.completed = completed
-        self.command = command
-        self.size = size
-        self.backdrop = parent.cget("bg") or app.colors["surface"]
-        super().__init__(parent, bg=self.backdrop, width=size, height=size,
-                         highlightthickness=0, bd=0, cursor="hand2")
-        self.bind("<Button-1>", self._click)
+    def redraw(self) -> None:
         self._draw()
-
-    def _click(self, _event) -> None:
-        if self.command:
-            self.command()
-
-    def set_completed(self, completed: bool) -> None:
-        self.completed = completed
-        self._draw()
-
-    def _draw(self) -> None:
-        self.delete("all")
-        size = self.size
-        colors = self.app.colors
-        radius = size // 2 - 1
-        if self.completed:
-            soft_round_rect(self, 1, 1, size - 1, size - 1, radius, colors["ink"], backdrop=self.backdrop)
-            self.create_line(size * 0.28, size * 0.53, size * 0.44, size * 0.69, size * 0.73, size * 0.32,
-                             fill="#FFFFFF", width=2, capstyle="round", joinstyle="round", smooth=True)
-        else:
-            soft_round_rect(self, 1, 1, size - 1, size - 1, radius, colors["soft"], backdrop=self.backdrop)
-
-
-class CheckCircle(tk.Canvas):
-    """自绘圆形勾选：完成 = ink 圆 + 白勾；未完成 = soft 圆点。"""
-
-    def __init__(self, parent, *, app, completed: bool = False, command=None, size: int = 22) -> None:
-        self.app = app
-        self.completed = completed
-        self.command = command
-        self.size = size
-        self.backdrop = parent.cget("bg") or app.colors["surface"]
-        super().__init__(parent, bg=self.backdrop, width=size, height=size,
-                         highlightthickness=0, bd=0, cursor="hand2")
-        self.bind("<Button-1>", self._click)
-        self._draw()
-
-    def _click(self, _event) -> None:
-        if self.command:
-            self.command()
-
-    def set_completed(self, completed: bool) -> None:
-        self.completed = completed
-        self._draw()
-
-    def _draw(self) -> None:
-        self.delete("all")
-        size = self.size
-        colors = self.app.colors
-        radius = size // 2 - 1
-        if self.completed:
-            soft_round_rect(self, 1, 1, size - 1, size - 1, radius, colors["ink"], backdrop=self.backdrop)
-            self.create_line(size * 0.28, size * 0.53, size * 0.44, size * 0.69, size * 0.73, size * 0.32,
-                             fill="#FFFFFF", width=2, capstyle="round", joinstyle="round", smooth=True)
-        else:
-            soft_round_rect(self, 1, 1, size - 1, size - 1, radius, colors["soft"], backdrop=self.backdrop)

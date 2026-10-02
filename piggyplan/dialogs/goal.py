@@ -17,10 +17,10 @@ class GoalDialogMixin:
         container.columnconfigure(0, weight=1)
         head = tk.Frame(container, bg=self.colors["surface"])
         head.grid(row=0, column=0, sticky="ew")
-        self._label(head, "编辑长期目标" if goal else "新建长期目标", 17, self.colors["text"], True, bg=self.colors["surface"]).pack(anchor="w", padx=22, pady=(19, 3))
-        self._label(head, "目标进度由关联待办自动计算，不需要手动维护百分比。", 9, self.colors["text_soft"], False, bg=self.colors["surface"]).pack(anchor="w", padx=22, pady=(0, 16))
+        self._label(head, "编辑长期目标" if goal else "新建长期目标", 17, self.colors["text"], True, bg=self.colors["surface"]).pack(anchor="w", pady=(0, 3))
+        self._label(head, "进度由关联待办自动计算。", 9, self.colors["text_soft"], False, bg=self.colors["surface"]).pack(anchor="w", pady=(0, 8))
         form = tk.Frame(container, bg=self.colors["surface"])
-        form.grid(row=1, column=0, sticky="nsew", padx=2, pady=17)
+        form.grid(row=1, column=0, sticky="nsew", pady=(12, 0))
         form.columnconfigure(0, weight=1)
         title_var = tk.StringVar(value=goal["title"] if goal else "")
         category_var = tk.StringVar(value=category_label(goal["category"] if goal else self.settings.get("default_category", "work")))
@@ -30,18 +30,18 @@ class GoalDialogMixin:
         title_entry = ttk.Entry(form, textvariable=title_var, font=self.font("body"))
         title_entry.grid(row=1, column=0, sticky="ew", pady=(0, 15), ipady=3)
         self._form_label(form, "目标说明（可选）", row=2)
-        note = tk.Text(form, height=5, wrap="word", bg=self.colors["surface_soft"], fg=self.colors["text"], relief="flat", bd=0, highlightbackground=self.colors["surface_soft"], highlightcolor=self.colors["strong"], highlightthickness=1, font=self.font("meta"))
+        note = tk.Text(form, width=1, height=5, wrap="word", bg=self.colors["surface_soft"], fg=self.colors["text"], relief="flat", bd=0, highlightbackground=self.colors["surface_soft"], highlightcolor=self.colors["strong"], highlightthickness=1, font=self.font("meta"))
         note.grid(row=3, column=0, sticky="ew", pady=(4, 14))
         if goal:
             note.insert("1.0", goal.get("note", ""))
         properties = tk.Frame(form, bg=self.colors["surface"])
         properties.grid(row=4, column=0, sticky="ew")
-        properties.grid_columnconfigure(0, weight=1)
-        properties.grid_columnconfigure(1, weight=1)
+        properties.grid_columnconfigure(0, weight=1, uniform="properties")
+        properties.grid_columnconfigure(1, weight=1, uniform="properties")
         self._form_label(properties, "分类", 0, 0)
         self._form_label(properties, "优先级", 0, 1)
-        ttk.Combobox(properties, textvariable=category_var, values=["工作", "生活"], state="readonly").grid(row=1, column=0, sticky="ew", padx=(0, 8), pady=(4, 0))
-        ttk.Combobox(properties, textvariable=priority_var, values=["普通", "高"], state="readonly").grid(row=1, column=1, sticky="ew", padx=(8, 0), pady=(4, 0))
+        ttk.Combobox(properties, textvariable=category_var, values=[category_label(key) for key in ("work", "life")], state="readonly", width=1).grid(row=1, column=0, sticky="ew", padx=(0, 8), pady=(4, 0))
+        ttk.Combobox(properties, textvariable=priority_var, values=["普通", "高"], state="readonly", width=1).grid(row=1, column=1, sticky="ew", padx=(8, 0), pady=(4, 0))
         self._form_label(form, "计划完成日期（可留空）", row=5)
         date_entry = ttk.Entry(form, textvariable=date_var)
         date_entry.grid(row=6, column=0, sticky="ew", pady=(4, 1))
@@ -61,7 +61,7 @@ class GoalDialogMixin:
                 error.configure(text="日期格式应为 YYYY-MM-DD")
                 date_entry.focus_set()
                 return
-            values = {"title": title_value, "note": note.get("1.0", tk.END).strip(), "category": "life" if category_var.get() == "生活" else "work", "priority": "high" if priority_var.get() == "高" else "normal", "planned_finish_date": date_var.get().strip() or None}
+            values = {"title": title_value, "note": note.get("1.0", tk.END).strip(), "category": "life" if category_var.get() == category_label("life") else "work", "priority": "high" if priority_var.get() == "高" else "normal", "planned_finish_date": date_var.get().strip() or None}
             if goal:
                 self.db.update_goal(goal["id"], values)
             else:

@@ -1,55 +1,50 @@
-"""概览侧栏：本周执行统计与长期目标进度。"""
-
+"""Contextual progress beside the continuous daily list."""
 from __future__ import annotations
-
 import tkinter as tk
-from datetime import date
 from ..util import date_text, end_of_week, start_of_week, today_key
 
 
 class RailMixin:
     def render_rail(self, parent: tk.Misc) -> None:
-        for child in parent.winfo_children():
-            child.destroy()
-        colors = self.colors
-        goals_card = tk.Frame(parent, bg=self.colors["surface"], highlightthickness=0)
-        goals_card.pack(fill="x", pady=(0, 14))
-        self._label(goals_card, "🐾  长期目标", 10, self.colors["text"], True, bg=self.colors["surface"]).pack(anchor="w", padx=15, pady=(15, 12))
+        self.clear(parent)
+        c = self.colors
+        bg = parent.cget("bg")
+        parent.grid_columnconfigure(1, weight=1)
+        tk.Frame(parent, bg=c["line"], width=1).grid(row=0, column=0, rowspan=2, sticky="ns", padx=(0, 22))
+        goals = tk.Frame(parent, bg=bg)
+        goals.grid(row=0, column=1, sticky="new", pady=(0, 28))
+        self._label(goals, "正在推进", 11, c["text"], True, bg=bg).pack(anchor="w", pady=(0, 17))
         active = self.db.list_goals(status="active")[:3]
-        if active:
-            for goal in active:
-                item = tk.Frame(goals_card, bg=self.colors["surface"], cursor="hand2")
-                item.pack(fill="x", padx=15, pady=(0, 13))
-                top = tk.Frame(item, bg=self.colors["surface"])
-                top.pack(fill="x")
-                self._label(top, goal["title"], 9, self.colors["text"], True, bg=self.colors["surface"], anchor="w").pack(side="left", fill="x", expand=True)
-                self._label(top, f"{goal['progress']}%", 9, colors["strong"], True, bg=self.colors["surface"]).pack(side="right")
-                track = tk.Frame(item, bg=self.colors["surface_soft"], height=6)
-                track.pack(fill="x", pady=(6, 0))
-                tk.Frame(track, bg=colors["accent"], height=6).place(relwidth=max(0, min(1, goal["progress"] / 100)), relheight=1)
-                self._label(item, f"{goal['completed']}/{goal['total']} 个待办 · {'高优先' if goal['priority'] == 'high' else '稳步推进'}", 8, self.colors["text_faint"], False, bg=self.colors["surface"]).pack(anchor="w", pady=(5, 0))
-                self._bind_click_recursive(item, lambda gid=goal["id"]: self.open_goal_detail(gid))
-        else:
-            self._label(goals_card, "还没有进行中的目标。", 8, self.colors["text_soft"], False, bg=self.colors["surface"]).pack(anchor="w", padx=15, pady=(0, 7))
-            self._button(goals_card, "设定一个长期目标 →", self.open_new_goal, "link").pack(anchor="w", padx=15, pady=(0, 13))
-        self._button(goals_card, "查看全部目标 →", lambda: self.navigate("goals"), "link").pack(anchor="w", padx=15, pady=(0, 14))
+        for goal in active:
+            item = tk.Frame(goals, bg=bg, cursor="hand2")
+            item.pack(fill="x", pady=(0, 20))
+            title = self._label(item, goal["title"], 10, c["text"], bg=bg, anchor="w", justify="left", width=1)
+            title.pack(fill="x")
+            title.bind("<Configure>", lambda e, label=title: label.configure(wraplength=max(100, e.width)))
+            track = tk.Frame(item, bg=c["line"], height=3)
+            track.pack(fill="x", pady=(10, 7))
+            tk.Frame(track, bg=c["accentDeep"], height=3).place(relwidth=goal["progress"] / 100, relheight=1)
+            self._label(item, f"{goal['completed']}/{goal['total']} 待办完成    {goal['progress']}%", 9, c["text_soft"], bg=bg).pack(anchor="w")
+            self._bind_click_recursive(item, lambda gid=goal["id"]: self.open_goal_detail(gid))
+        if not active:
+            self._label(goals, "还没有进行中的目标", 10, c["text_soft"], bg=bg).pack(anchor="w")
+        self._button(goals, "查看长期目标", lambda: self.navigate("goals"), "link").pack(anchor="w")
         stats = self.db.weekly_stats()
-        stat_card = tk.Frame(parent, bg=self.colors["surface"], highlightthickness=0)
-        stat_card.pack(fill="x")
-        self._label(stat_card, "📊  本周执行", 10, self.colors["text"], True, bg=self.colors["surface"]).pack(anchor="w", padx=15, pady=(15, 3))
-        self._label(stat_card, f"{date_text(start_of_week().isoformat())} – {date_text(end_of_week().isoformat())}", 8, self.colors["text_faint"], False, bg=self.colors["surface"]).pack(anchor="w", padx=15, pady=(0, 13))
-        for title, value in (("实际完成", stats["actual"]), ("有效计划", stats["total"]), ("计划完成率", f"{stats['rate']}%")):
-            line = tk.Frame(stat_card, bg=self.colors["surface"])
-            line.pack(fill="x", padx=15, pady=(0, 10))
-            self._label(line, title, 8, self.colors["text_soft"], False, bg=self.colors["surface"]).pack(side="left")
-            self._label(line, str(value), 15 if title == "计划完成率" else 13, colors["strong"] if title == "计划完成率" else self.colors["text"], True, bg=self.colors["surface"]).pack(side="right")
-        chart = tk.Frame(stat_card, bg=self.colors["surface"], height=76)
-        chart.pack(fill="x", padx=15, pady=(4, 15))
+        week = tk.Frame(parent, bg=bg)
+        week.grid(row=1, column=1, sticky="new")
+        self._label(week, "本周", 11, c["text"], True, bg=bg).pack(anchor="w")
+        self._label(week, f"{date_text(start_of_week().isoformat())} — {date_text(end_of_week().isoformat())}", 9, c["text_soft"], bg=bg).pack(anchor="w", pady=(7, 19))
+        for title, value in (("实际完成", stats["actual"]), ("有效计划", stats["total"]), ("按计划完成", f"{stats['rate']}%")):
+            line = tk.Frame(week, bg=bg)
+            line.pack(fill="x", pady=(0, 13))
+            self._label(line, title, 9, c["text_soft"], bg=bg).pack(side="left")
+            self._label(line, str(value), 11, c["text"], bg=bg).pack(side="right")
+        chart = tk.Frame(week, bg=bg, height=74)
+        chart.pack(fill="x", pady=(6, 0))
         chart.pack_propagate(False)
-        max_actual = max(1, max(item["actual"] for item in stats["days"]))
-        for index, item in enumerate(stats["days"]):
-            col = tk.Frame(chart, bg=self.colors["surface"])
-            col.place(relx=index / 7, rely=0, relwidth=1 / 7, relheight=1)
-            bar = tk.Frame(col, bg=colors["accentDeep"] if item["date"] == today_key() else colors["accent"], width=16)
-            bar.place(relx=0.5, rely=0.78, anchor="s", relheight=max(0.05, item["actual"] / max_actual * 0.65), relwidth=0.38)
-            self._label(col, "今" if item["date"] == today_key() else item["date"][5:].replace("-", "/"), 7, self.colors["text_faint"], False, bg=self.colors["surface"]).place(relx=0.5, rely=0.9, anchor="n")
+        maximum = max(1, max(day["actual"] for day in stats["days"]))
+        for index, day in enumerate(stats["days"]):
+            column = tk.Frame(chart, bg=bg)
+            column.place(relx=index / 7, rely=0, relwidth=1 / 7, relheight=1)
+            tk.Frame(column, bg=c["accentDeep"] if day["date"] == today_key() else c["accent"], width=10).place(relx=0.5, rely=0.72, anchor="s", relheight=max(0.025, day["actual"] / maximum * 0.65), relwidth=0.25)
+            self._label(column, "今" if day["date"] == today_key() else day["date"][8:], 9, c["text_soft"], bg=bg).place(relx=0.5, rely=1, y=-1, anchor="s")

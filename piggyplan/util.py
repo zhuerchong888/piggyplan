@@ -6,7 +6,7 @@ import sys
 import uuid
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 
 from .constants import AUTOSTART_KEY, AUTOSTART_VALUE, HOTKEY_DEFAULT
 
@@ -149,7 +149,8 @@ def date_text(value: str | None, long: bool = False) -> str:
 
 
 def category_label(value: str) -> str:
-    return "生活" if value == "life" else "工作"
+    """Display labels can change while stored work/life keys stay compatible."""
+    return "学习" if value == "life" else "工作"
 
 
 def start_of_week(value: date | None = None) -> date:
@@ -165,7 +166,7 @@ def split_tags(value: str | Iterable[str] | None) -> list[str]:
     if value is None:
         return []
     if isinstance(value, str):
-        values = value.replace("，", ",").split(",")
+        values = value.replace("，", ",").replace("、", ",").split(",")
     else:
         values = list(value)
     result: list[str] = []
@@ -174,3 +175,22 @@ def split_tags(value: str | Iterable[str] | None) -> list[str]:
         if tag and tag not in result:
             result.append(tag)
     return result
+
+
+def goal_choice_labels(goals: Iterable[dict[str, Any]], include_standalone: bool = False) -> dict[str, str]:
+    """Keep every goal selectable even when titles or display labels repeat."""
+
+    entries = list(goals)
+    titles = [goal["title"] + ("（已达成）" if goal["status"] == "achieved" else "") for goal in entries]
+    choices = {"独立待办": ""} if include_standalone else {}
+    for goal, title in zip(entries, titles):
+        label = title
+        if titles.count(title) > 1 or label in choices:
+            label = f"{title} · {category_label(goal['category'])} · {goal['id'][-6:]}"
+        suffix = 2
+        unique = label
+        while unique in choices:
+            unique = f"{label} ({suffix})"
+            suffix += 1
+        choices[unique] = goal["id"]
+    return choices

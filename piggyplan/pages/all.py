@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import tkinter as tk
 from typing import Any
+from ..util import category_label
 
 
 class AllMixin:
     def render_all(self, parent: tk.Misc) -> None:
         tasks = self.db.list_tasks(include_completed=self.filter_values["status"] != "todo", mode="all", category=self.filter_values["category"], priority=self.filter_values["priority"], status=self.filter_values["status"])
         tasks = self._apply_task_filters(tasks)
-        self.page_header(parent, "全局掌握", "全部待办", "工作与生活放在同一条执行线上，日期通过显式操作调整。", (str(len(tasks)), "符合当前筛选"))
+        self.page_header(parent, "全局掌握", "全部待办", "按分类、标签和目标筛选，也可以批量整理。", (str(len(tasks)), "符合当前筛选"))
         toolbar = tk.Frame(parent, bg=self.colors["bg"])
         toolbar.grid(row=1, column=0, sticky="ew", pady=(0, 13))
         self._button(toolbar, "筛选", self.open_filter_dialog, "outline").pack(side="left")
@@ -55,7 +56,7 @@ class AllMixin:
 
     def _filter_summary(self) -> str:
         values = []
-        if self.filter_values["category"] != "all": values.append("生活" if self.filter_values["category"] == "life" else "工作")
+        if self.filter_values["category"] != "all": values.append(category_label(self.filter_values["category"]))
         if self.filter_values["priority"] != "all": values.append("高优" if self.filter_values["priority"] == "high" else "普通")
         if self.filter_values["goal"] != "all": values.append("已关联" if self.filter_values["goal"] == "linked" else "独立")
         if self.filter_values["status"] != "todo": values.append("已完成" if self.filter_values["status"] == "completed" else "全部状态")
@@ -70,8 +71,8 @@ class AllMixin:
             self._button(bar, text, callback, "ghost").pack(side="right", padx=(0, 4), pady=4)
         more = tk.Menubutton(bar, text="更多操作 ▾", relief="flat", bd=0, bg=self.colors["surface"], fg=self.colors["text_soft"], activebackground=self.colors["accent"], font=self.font("meta"), cursor="hand2", padx=10, pady=7)
         menu = tk.Menu(more, tearoff=0, bg=self.colors["surface"], fg=self.colors["text"], activebackground=self.colors["soft"], activeforeground=self.colors["text"], bd=0)
-        menu.add_command(label="分类：工作", command=lambda: self.batch_set("category", "work"))
-        menu.add_command(label="分类：生活", command=lambda: self.batch_set("category", "life"))
+        for value in ("work", "life"):
+            menu.add_command(label=f"分类：{category_label(value)}", command=lambda value=value: self.batch_set("category", value))
         menu.add_separator()
         menu.add_command(label="优先级：高", command=lambda: self.batch_set("priority", "high"))
         menu.add_command(label="优先级：普通", command=lambda: self.batch_set("priority", "normal"))
@@ -85,12 +86,16 @@ class AllMixin:
         board = tk.Frame(parent, bg=self.colors["bg"])
         board.grid(row=row, column=0, sticky="ew")
         todo = [task for task in tasks if task["status"] == "todo"]
-        completed = self.db.list_tasks(include_completed=True, status="completed", category=self.filter_values["category"], priority=self.filter_values["priority"], goal_id=goal_id)
-        completed = self._apply_task_filters(completed)
+        if goal_id:
+            completed = [task for task in tasks if task["status"] == "completed"]
+        else:
+            completed = self.db.list_tasks(include_completed=True, status="completed", category=self.filter_values["category"], priority=self.filter_values["priority"])
+            completed = self._apply_task_filters(completed)
+        columns = 1 if self.winfo_width() < 1040 else 2
         for col, (title, values, status) in enumerate((("待办", todo, "todo"), ("已完成", completed, "completed"))):
             column = tk.Frame(board, bg=self.colors["surface_soft"], highlightthickness=0)
-            column.grid(row=0, column=col, sticky="nsew", padx=(0, 10) if col == 0 else (10, 0))
-            board.grid_columnconfigure(col, weight=1)
+            column.grid(row=col // columns, column=col % columns, sticky="nsew", padx=(0, 12) if columns == 2 and col == 0 else (0, 0), pady=(0, 18))
+            board.grid_columnconfigure(col % columns, weight=1, uniform="board")
             head = tk.Frame(column, bg=self.colors["surface_soft"])
             head.pack(fill="x", padx=14, pady=12)
             self._label(head, title, 10, self.colors["text"], True, bg=self.colors["surface_soft"]).pack(side="left")
@@ -99,6 +104,6 @@ class AllMixin:
             body.pack(fill="both", expand=True, padx=10, pady=(0, 10))
             if values:
                 for task in values:
-                    self.task_row(body, task, compact=True, selectable=True)
+                    self.task_row(body, task, compact=True, selectable=goal_id is None)
             else:
                 self._label(body, "这一栏暂时是空的。", 8, self.colors["text_faint"], False, bg=self.colors["surface_soft"]).pack(anchor="w", padx=8, pady=14)

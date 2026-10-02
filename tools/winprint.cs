@@ -20,8 +20,9 @@ public static class WinPrint
     [DllImport("user32.dll")]
     private static extern bool GetClientRect(IntPtr hwnd, out NativeRect rect);
 
+    // 客户区尺寸必须搭配 PW_CLIENTONLY，避免标题栏占用画布并裁掉页脚。
     // PW_RENDERFULLCONTENT = 2：让 DWM 组合的窗口也能画出内容。
-    private const uint RenderFullContent = 2;
+    private const uint ClientFullContent = 1 | 2;
 
     public static string Capture(IntPtr hwnd, string outputPath)
     {
@@ -36,7 +37,7 @@ public static class WinPrint
             using (var graphics = Graphics.FromImage(bitmap))
             {
                 IntPtr hdc = graphics.GetHdc();
-                if (!PrintWindow(hwnd, hdc, RenderFullContent))
+                if (!PrintWindow(hwnd, hdc, ClientFullContent))
                 {
                     throw new InvalidOperationException("PrintWindow 调用失败");
                 }

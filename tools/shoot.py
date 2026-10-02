@@ -27,7 +27,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-CAPTURES = ["today", "upcoming", "all", "goals", "archive", "settings"]
+CAPTURES = ["today", "upcoming", "all", "goals", "archive", "settings", "settings-backup", "settings-local", "board", "goal-detail", "goal-board", "search", "empty-today"]
+DIALOG_CAPTURES = ["task", "task-more", "goal", "filter", "quick-add", "batch-date", "batch-goal", "goal-decision"]
 
 PAGE_TIMEOUT = 40.0  # 正常每页 1-2s；看门狗只该在死锁时触发
 WATCHDOG_EXIT = 97
@@ -130,7 +131,8 @@ def worker(label: str) -> None:
     folder = tempfile.TemporaryDirectory()
     database = Database(Path(folder.name) / "shots.db", seed=True)
     app = piggyplan_desktop.PiggyPlanApp(database=database)
-    app.geometry("1160x760+60+40")
+    geometry = next((arg.split("=", 1)[1] for arg in sys.argv if arg.startswith("--geometry=")), "1160x760+60+40")
+    app.geometry(geometry)
     grabber = Grabber()
     try:
         for name in CAPTURES:
@@ -140,23 +142,85 @@ def worker(label: str) -> None:
                 continue
             guard = watchdog()
             try:
-                app.navigate(name)
+                if name == "board":
+                    app.navigate("all")
+                    app.all_mode = "board"
+                    app.render()
+                elif name == "goal-detail":
+                    app.open_goal_detail(database.list_goals(status="active")[0]["id"])
+                elif name == "goal-board":
+                    app.goal_mode = "board"
+                    app.open_goal_detail(database.list_goals(status="active")[0]["id"])
+                elif name in ("settings-backup", "settings-local"):
+                    app.navigate("settings")
+                elif name == "search":
+                    app.search_var.set("复盘")
+                    app.render()
+                elif name == "empty-today":
+                    database.clear_all()
+                    app.navigate("today")
+                else:
+                    app.navigate(name)
                 quiesce(app)
+                if name == "settings-backup":
+                    def descendants(widget):
+                        for child in widget.winfo_children():
+                            yield child
+                            yield from descendants(child)
+                    import tkinter as tk_tk
+                    heading = next(widget for widget in descendants(app.center)
+                                   if isinstance(widget, tk_tk.Label) and widget.cget("text") == "数据与备份")
+                    region = app.canvas.bbox("all")
+                    app.canvas.yview_moveto(max(0, heading.winfo_rooty() - app.page.winfo_rooty() - 18) / region[3])
+                    quiesce(app)
+                elif name == "settings-local":
+                    app.canvas.yview_moveto(1)
+                    quiesce(app)
                 grabber.grab(app, target)
                 print(f"  {name}.png", flush=True)
             finally:
                 guard.cancel()
-        target = out / "dialog-task.png"
-        if not looks_valid(target):
+        for name in DIALOG_CAPTURES:
+            target = out / f"dialog-{name}.png"
+            if looks_valid(target):
+                continue
             guard = watchdog()
             try:
-                app.open_task_dialog()
+                if name in ("batch-date", "batch-goal", "goal-decision"):
+                    if not database.list_tasks():
+                        database.create_task("整理下周安排")
+                    if name in ("batch-goal", "goal-decision") and not database.list_goals():
+                        database.create_goal("完成季度复盘")
+                        database.create_goal("建立每周阅读习惯", category="life")
+                    app.navigate("all")
+                    task_id = database.list_tasks()[0]["id"]
+                    app.selected_task_ids.add(task_id)
+                    if name == "goal-decision":
+                        goal_id = database.list_goals()[0]["id"]
+                        database.update_task(task_id, {"goal_id": goal_id})
+                        app.goal_decision_dialog(goal_id, "achieve")
+                    else:
+                        (app.batch_set_date if name == "batch-date" else app.batch_attach_goal)()
+                else:
+                    {"task": app.open_task_dialog, "task-more": app.open_task_dialog, "goal": app.open_goal_dialog,
+                     "filter": app.open_filter_dialog, "quick-add": app.open_quick_add}[name]()
                 quiesce(app)
                 # 对话框是独立 Toplevel，PrintWindow 抓主窗口抓不到它；直接抓对话框 hwnd。
                 import tkinter as tk_tk
                 dialog = next(child for child in app.winfo_children() if isinstance(child, tk_tk.Toplevel))
+                if name == "task-more":
+                    from piggyplan.ui.widgets import PillButton
+                    def dialog_descendants(widget):
+                        for child in widget.winfo_children():
+                            yield child
+                            yield from dialog_descendants(child)
+                    more = next(widget for widget in dialog_descendants(dialog)
+                                if isinstance(widget, PillButton)
+                                and widget.itemcget(widget._text, "text") == "更多选项")
+                    more.invoke()
+                    quiesce(app)
                 grabber.grab(dialog, target)
-                print("  dialog-task.png", flush=True)
+                print(f"  dialog-{name}.png", flush=True)
                 app.destroy_top_level()
             finally:
                 guard.cancel()
@@ -170,9 +234,10 @@ def worker(label: str) -> None:
 def supervise(label: str) -> int:
     for attempt in range(1, 5):
         result = subprocess.run(
-            [sys.executable, "-u", str(Path(__file__).resolve()), label, "--worker"])
+            [sys.executable, "-u", str(Path(__file__).resolve()), label, "--worker"]
+            + [arg for arg in sys.argv if arg.startswith("--geometry=")])
         if result.returncode == 0:
-            print(f"shots/{label}: {len(CAPTURES) + 1} images")
+            print(f"shots/{label}: {len(CAPTURES) + len(DIALOG_CAPTURES)} images")
             return 0
         if result.returncode != WATCHDOG_EXIT:
             return result.returncode

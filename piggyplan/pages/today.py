@@ -1,63 +1,57 @@
-"""今日清单页：逾期、今天、已完成三段。
-
-页面只负责排布与调用，绘制一律走 PrimitivesMixin 的原语，数据一律走 self.db。"""
-
+"""Today: a continuous, quiet execution list."""
 from __future__ import annotations
-
 import tkinter as tk
-from ..util import today_key
+from ..util import today_key, today_text
 
 
 class TodayMixin:
     def render_today(self, parent: tk.Misc) -> None:
-        tasks = self.db.list_tasks()
-        overdue = [task for task in tasks if task.get("planned_date") and task["planned_date"] < today_key()]
-        planned_today = [task for task in tasks if task.get("planned_date") == today_key()]
-        completed_today = self.db.completed_on(today_key())
-        planned_total = len(planned_today) + len([task for task in completed_today if task.get("planned_date") == today_key()])
-        done_today = len([task for task in completed_today if task.get("planned_date") == today_key()])
-        percent = round(done_today / planned_total * 100) if planned_total else 0
-        self.page_header(parent, "执行焦点", "今天要做的事", "逾期不会自动消失，今天只保留真正需要你决定的下一步。", (f"{len(planned_today)} 项", f"今天待办 · {percent}% 已按计划完成"))
-        if overdue:
-            notice = tk.Frame(parent, bg="#FFF0F1", highlightthickness=0)
-            notice.grid(row=1, column=0, sticky="ew", pady=(0, 18))
-            self._label(notice, f"🐷  有 {len(overdue)} 项逾期，原计划日期会保留。先处理最重要的一件。", 9, self.colors["high_ink"], True, bg="#FFF0EE").pack(side="left", padx=13, pady=11)
-            self._button(notice, "查看逾期", lambda: self.canvas.yview_moveto(0.15), "link").pack(side="right", padx=10)
+        tasks = self.db.list_tasks(mode="default")
+        overdue = [t for t in tasks if t.get("planned_date") and t["planned_date"] < today_key()]
+        planned = [t for t in tasks if t.get("planned_date") == today_key()]
+        completed = self.db.completed_on(today_key())
+        done_planned = sum(t.get("planned_date") == today_key() for t in completed)
+        total = len(planned) + done_planned
+        stats = self.db.weekly_stats()
+        self.page_header(parent, "", "今天", today_text())
+        summary = tk.Frame(parent, bg=self.colors["bg"])
+        summary.grid(row=1, column=0, sticky="ew", pady=(0, 20))
+        for col, (label, value) in enumerate((("今日计划", total), ("今日完成", len(completed)), ("逾期待处理", len(overdue)), ("本周完成", stats["actual"]))):
+            summary.grid_columnconfigure(col, weight=1)
+            item = tk.Frame(summary, bg=self.colors["bg"])
+            item.grid(row=0, column=col, sticky="w")
+            self._label(item, str(value), 20, self.colors["strong"] if col == 1 else self.colors["text"], True).pack(anchor="w")
+            self._label(item, label, 9, self.colors["text_soft"]).pack(anchor="w", pady=(5, 0))
+        progress = tk.Frame(summary, bg=self.colors["line"], height=3)
+        progress.grid(row=1, column=0, columnspan=4, sticky="ew", pady=(20, 0))
+        if total:
+            tk.Frame(progress, bg=self.colors["accentDeep"], height=3).place(relwidth=done_planned / total, relheight=1)
         row = 2
         if overdue:
-            self.section_title(parent, "逾期", len(overdue), color=self.colors["high_ink"]).grid(row=row, column=0, sticky="ew")
+            self.section_title(parent, "逾期待处理", len(overdue), color=self.colors["high_ink"]).grid(row=row, column=0, sticky="ew")
             row += 1
             block = tk.Frame(parent, bg=self.colors["bg"])
             block.grid(row=row, column=0, sticky="ew", pady=(0, 20))
             for task in overdue:
                 self.task_row(block, task)
             row += 1
-        self.section_title(parent, "今天", len(planned_today), "添加到今天", lambda: self.open_new_task(date_key=today_key())).grid(row=row, column=0, sticky="ew")
+        self.section_title(parent, "今日待办", len(planned), "添加到今天", lambda: self.open_new_task(date_key=today_key())).grid(row=row, column=0, sticky="ew")
         row += 1
-        today_block = tk.Frame(parent, bg=self.colors["bg"])
-        today_block.grid(row=row, column=0, sticky="ew")
-        high = [task for task in planned_today if task["priority"] == "high"]
-        normal = [task for task in planned_today if task["priority"] != "high"]
-        if high:
-            self._label(today_block, "高优先级", 9, self.colors["text_soft"], True, bg=self.colors["bg"]).pack(anchor="w", pady=(0, 7))
-            for task in high:
-                self.task_row(today_block, task, show_date=False)
-        if normal:
-            self._label(today_block, "普通优先级", 9, self.colors["text_soft"], True, bg=self.colors["bg"]).pack(anchor="w", pady=(11, 7) if high else (0, 7))
-            for task in normal:
-                self.task_row(today_block, task, show_date=False)
-        if not planned_today:
-            self.empty_state(today_block, "今天还空着", "放进第一件事", self.open_new_task)
+        block = tk.Frame(parent, bg=self.colors["bg"])
+        block.grid(row=row, column=0, sticky="ew")
+        if planned:
+            for task in planned:
+                self.task_row(block, task, show_date=False)
+        else:
+            self.empty_state(block, "今天还没有安排", "记录一件要做的事，或从之后的安排中选择。", lambda: self.open_new_task(date_key=today_key()))
         row += 1
-        completed_box = tk.Frame(parent, bg=self.colors["surface_soft"], highlightthickness=0)
-        completed_box.grid(row=row, column=0, sticky="ew", pady=(20, 0))
-        header = tk.Frame(completed_box, bg=self.colors["surface_soft"])
+        completed_box = tk.Frame(parent, bg=self.colors["bg"])
+        completed_box.grid(row=row, column=0, sticky="ew", pady=(24, 0))
+        header = tk.Frame(completed_box, bg=self.colors["bg"])
         header.pack(fill="x")
-        arrow = "▾" if self.completed_open else "›"
-        self._button(header, f"{arrow}  已完成  {len(completed_today)}", self.toggle_completed, "ghost").pack(side="left", padx=9, pady=6)
-        self._label(header, "今天实际完成", 8, self.colors["text_faint"], False, bg=self.colors["surface_soft"]).pack(side="right", padx=12)
+        self._button(header, f"{'▾' if self.completed_open else '›'}  今天已完成  {len(completed)}", self.toggle_completed, "ghost").pack(side="left")
         if self.completed_open:
-            for task in completed_today:
+            for task in completed:
                 self.task_row(completed_box, task, compact=True)
-            if not completed_today:
-                self.empty_state(completed_box, "今天还没有完成记录", "完成的事项会在这里留下痕迹。")
+            if not completed:
+                self._label(completed_box, "完成的事项会保留在这里。", 10, self.colors["text_soft"]).pack(anchor="w", pady=16)

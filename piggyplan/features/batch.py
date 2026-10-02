@@ -5,7 +5,8 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import messagebox, ttk
 from typing import Any
-from ..util import category_label, offset_date, parse_date, today_key
+from ..ui.dialog import Dialog
+from ..util import category_label, goal_choice_labels, offset_date, parse_date, today_key
 
 
 class BatchMixin:
@@ -65,24 +66,19 @@ class BatchMixin:
         tasks = self._selected_tasks()
         if not tasks:
             return
-        dialog = tk.Toplevel(self)
-        dialog.title("批量设置计划日期")
-        dialog.configure(bg=self.colors["bg"])
-        dialog.transient(self)
-        dialog.grab_set()
-        dialog.geometry("390x205")
-        self._label(dialog, "批量设置计划日期", 15, self.colors["text"], True, bg=self.colors["bg"]).pack(anchor="w", padx=20, pady=(19, 3))
-        self._label(dialog, f"将修改已选择的 {len(tasks)} 项；未安排不会进入计划完成率。", 8, self.colors["text_soft"], False, bg=self.colors["bg"]).pack(anchor="w", padx=20)
-        row = tk.Frame(dialog, bg=self.colors["bg"])
-        row.pack(fill="x", padx=20, pady=16)
+        dialog = Dialog(self, "批量设置计划日期", "480x250")
+        content = dialog.content
+        self._label(content, "批量设置计划日期", 15, self.colors["text"], True, bg=self.colors["surface"]).pack(anchor="w", pady=(0, 5))
+        self._label(content, f"修改已选择的 {len(tasks)} 项；未安排不计入计划完成率。", 9, self.colors["text_soft"], False, bg=self.colors["surface"], wraplength=430, justify="left").pack(anchor="w")
+        row = tk.Frame(content, bg=self.colors["surface"])
+        row.pack(fill="x", pady=16)
         date_var = tk.StringVar()
         ttk.Entry(row, textvariable=date_var, width=15).pack(side="left")
         for label, value in (("今天", today_key()), ("明天", offset_date(1)), ("未安排", "")):
             self._button(row, label, lambda value=value: date_var.set(value), "ghost").pack(side="left", padx=(6, 0))
-        error = self._label(dialog, "", 8, self.colors["high"], False, bg=self.colors["bg"])
-        error.pack(anchor="w", padx=20)
-        footer = tk.Frame(dialog, bg=self.colors["surface_soft"], highlightthickness=0)
-        footer.pack(fill="x", side="bottom")
+        error = self._label(content, "", 9, self.colors["high_ink"], False, bg=self.colors["surface"])
+        error.pack(anchor="w")
+        footer = dialog.footer_actions
 
         def apply() -> None:
             value = date_var.get().strip() or None
@@ -97,8 +93,8 @@ class BatchMixin:
             self.render()
             self.show_toast("批量计划日期已更新", undo_callback=lambda snapshots=snapshots: self._undo_batch_dates(snapshots))
 
-        self._button(footer, "取消", dialog.destroy, "ghost").pack(side="right", padx=(0, 7), pady=10)
-        self._button(footer, "确认修改", apply, "primary").pack(side="right", padx=(0, 20), pady=10)
+        self._button(footer, "取消", dialog.destroy, "ghost").pack(side="right", padx=(0, 7))
+        self._button(footer, "确认修改", apply, "primary").pack(side="right", padx=(0, 2))
         dialog.bind("<Return>", lambda _event: apply())
         dialog.bind("<Escape>", lambda _event: dialog.destroy())
 
@@ -119,25 +115,19 @@ class BatchMixin:
         if len(goals) == 1:
             self._batch_set_goal(goals[0]["id"])
             return
-        dialog = tk.Toplevel(self)
-        dialog.title("挂载到目标")
-        dialog.configure(bg=self.colors["bg"])
-        dialog.transient(self)
-        dialog.grab_set()
-        dialog.geometry("390x180")
-        self._label(dialog, "挂载到长期目标", 15, self.colors["text"], True, bg=self.colors["bg"]).pack(anchor="w", padx=20, pady=(19, 12))
-        values = {goal["title"]: goal["id"] for goal in goals}
+        dialog = Dialog(self, "挂载到目标", "460x230")
+        self._label(dialog.content, "挂载到长期目标", 15, self.colors["text"], True, bg=self.colors["surface"]).pack(anchor="w", pady=(0, 16))
+        values = goal_choice_labels(goals)
         selected = tk.StringVar(value=next(iter(values)))
-        ttk.Combobox(dialog, textvariable=selected, values=list(values), state="readonly", width=30).pack(anchor="w", padx=20)
-        footer = tk.Frame(dialog, bg=self.colors["surface_soft"], highlightthickness=0)
-        footer.pack(fill="x", side="bottom", pady=(22, 0))
+        ttk.Combobox(dialog.content, textvariable=selected, values=list(values), state="readonly", width=1).pack(fill="x")
+        footer = dialog.footer_actions
 
         def apply() -> None:
             dialog.destroy()
             self._batch_set_goal(values[selected.get()])
 
-        self._button(footer, "取消", dialog.destroy, "ghost").pack(side="right", padx=(0, 7), pady=10)
-        self._button(footer, "确认挂载", apply, "primary").pack(side="right", padx=(0, 20), pady=10)
+        self._button(footer, "取消", dialog.destroy, "ghost").pack(side="right", padx=(0, 7))
+        self._button(footer, "确认挂载", apply, "primary").pack(side="right", padx=(0, 2))
 
     def _batch_set_goal(self, goal_id: str | None) -> None:
         tasks = self._selected_tasks()

@@ -8,37 +8,41 @@ from __future__ import annotations
 import tkinter as tk
 from typing import Any
 from ..tokens import RADIUS, SPACE
-from ..util import date_text, offset_date, today_key
+from ..util import category_label, date_text, offset_date, today_key
 from .mascot import PigMark
 from .widgets import Card, CheckCircle, Chip, HeartIcon, PillButton, SnoutIcon
 
 
 class PrimitivesMixin:
     def page_header(self, parent: tk.Misc, eyebrow: str, title: str, description: str, stat: tuple[str, str] | None = None) -> tk.Frame:
-        header = tk.Frame(parent, bg=self.colors["bg"])
-        header.grid(row=0, column=0, sticky="ew", pady=(0, 22))
-        header.grid_columnconfigure(0, weight=1)
-        label = self._label(header, f"PIGGY MOMENT · {eyebrow.upper()}", 8, self.colors["strong"], True)
-        label.grid(row=0, column=0, sticky="w", pady=(0, 6))
-        self._label(header, title, 22, self.colors["text"], True).grid(row=1, column=0, sticky="w")
-        self._label(header, description, 9, self.colors["text_soft"], False, wraplength=610, justify="left").grid(row=2, column=0, sticky="w", pady=(6, 0))
+        bg = parent.cget("bg")
+        header = tk.Frame(parent, bg=bg)
+        header.grid(row=0, column=0, sticky="ew", pady=(0, 26))
+        header.grid_columnconfigure(0, weight=1, minsize=0)
+        heading = self._label(header, title, 26, self.colors["text"], True, bg=bg, anchor="w", width=1)
+        heading.grid(row=0, column=0, sticky="ew")
+        heading.bind("<Configure>", lambda e: heading.configure(wraplength=max(150, e.width)))
+        copy = self._label(header, description, 10, self.colors["text_soft"], bg=bg, anchor="w", justify="left", width=1)
+        copy.grid(row=1, column=0, sticky="ew", pady=(8, 0))
+        copy.bind("<Configure>", lambda e: copy.configure(wraplength=max(150, e.width)))
         if stat:
-            stat_box = tk.Frame(header, bg=self.colors["soft"], highlightthickness=0)
-            stat_box.grid(row=0, column=1, rowspan=3, sticky="e", padx=(18, 0))
-            self._label(stat_box, stat[0], 19, self.colors["strong"], True, bg=self.colors["soft"]).pack(anchor="e", padx=18, pady=(13, 0))
-            self._label(stat_box, stat[1], 8, self.colors["text_soft"], False, bg=self.colors["soft"]).pack(anchor="e", padx=18, pady=(0, 13))
+            summary = tk.Frame(header, bg=bg)
+            summary.grid(row=0, column=1, rowspan=2, sticky="e", padx=(18, 0))
+            self._label(summary, stat[0], 16, self.colors["strong"], True, bg=bg).pack(anchor="e")
+            caption = self._label(summary, stat[1], 9, self.colors["text_soft"], bg=bg, justify="right", wraplength=155)
+            caption.pack(anchor="e", pady=(4, 0))
         return header
 
     def section_title(self, parent: tk.Misc, title: str, count: int | None = None, action_text: str | None = None, command=None, color: str | None = None) -> tk.Frame:
-        frame = tk.Frame(parent, bg=self.colors["bg"])
-        left = tk.Frame(frame, bg=self.colors["bg"])
-        left.pack(side="left")
-        SnoutIcon(left, app=self, size=14).pack(side="left", padx=(0, 9))
-        self._label(left, title, 10, color or self.colors["text"], True).pack(side="left")
+        bg = parent.cget("bg")
+        frame = tk.Frame(parent, bg=bg)
+        left = tk.Frame(frame, bg=bg)
+        left.pack(side="left", pady=(12, 9))
+        self._label(left, title, 11, color or self.colors["text"], True, bg=bg).pack(side="left")
         if count is not None:
-            self._label(left, str(count), 8, self.colors["text_faint"], False).pack(side="left", padx=8)
+            self._label(left, str(count), 9, self.colors["text_soft"], bg=bg).pack(side="left", padx=8)
         if action_text and command:
-            self._button(frame, f"+ {action_text}", command, "link").pack(side="right")
+            self._button(frame, action_text, command, "link").pack(side="right")
         return frame
 
     _card_tone = "surface"
@@ -61,49 +65,56 @@ class PrimitivesMixin:
 
     def task_row(self, parent: tk.Misc, task: dict[str, Any], show_date: bool = True, compact: bool = False, selectable: bool = False) -> tk.Frame:
         colors = self.colors
-        frame = Card(parent, app=self, tone="surface", hoverable=True, padding=(12, 11))
-        frame.pack(fill="x", pady=(0, 9))
-        frame.body.configure(cursor="hand2")
-        body = frame.body
+        bg = parent.cget("bg")
+        frame = tk.Frame(parent, bg=bg, bd=0)
+        frame.pack(fill="x")
+        frame.grid_columnconfigure(1, weight=1, minsize=0)
+        controls = tk.Frame(frame, bg=bg)
+        controls.grid(row=0, column=0, sticky="n", pady=(15, 12), padx=(1, 14))
         if selectable:
             chosen = tk.BooleanVar(value=task["id"] in self.selected_task_ids)
-            selector = tk.Checkbutton(body, variable=chosen, command=lambda tid=task["id"], var=chosen: self._toggle_selection(tid, var.get()), bg=self.colors["surface"], activebackground=self.colors["surface"], selectcolor=self.colors["surface"], bd=0, highlightthickness=0)
-            selector.pack(side="left", padx=(0, 6))
-        check = CheckCircle(body, app=self, completed=task["status"] == "completed", command=lambda tid=task["id"]: self.toggle_task(tid))
-        check.pack(side="left", padx=(0, 11))
-        middle = tk.Frame(body, bg=self.colors["surface"])
-        middle.pack(side="left", fill="x", expand=True)
-        title_row = tk.Frame(middle, bg=self.colors["surface"])
+            selector = tk.Checkbutton(controls, variable=chosen,
+                command=lambda tid=task["id"], var=chosen: self._toggle_selection(tid, var.get()),
+                bg=bg, activebackground=bg, selectcolor=colors["soft"], bd=0, highlightthickness=0)
+            selector.pack(side="left", padx=(0, 5))
+        check = CheckCircle(controls, app=self, completed=task["status"] == "completed",
+                            command=lambda tid=task["id"]: self.toggle_task(tid))
+        check.pack(side="left")
+        middle = tk.Frame(frame, bg=bg, cursor="hand2")
+        middle.grid(row=0, column=1, sticky="ew", pady=(12, 13))
+        title_row = tk.Frame(middle, bg=bg)
         title_row.pack(fill="x")
         if task["priority"] == "high" and task["status"] != "completed":
-            HeartIcon(title_row, app=self, size=12).pack(side="left", padx=(0, 5))
-        title = self._label(title_row, task["title"], 10, self.colors["text_soft"] if task["status"] == "completed" else self.colors["text"], True, bg=self.colors["surface"], anchor="w")
+            HeartIcon(title_row, app=self, size=11).pack(side="left", padx=(0, 7))
+        title = self._label(title_row, task["title"], 11,
+                            colors["text_soft"] if task["status"] == "completed" else colors["text"],
+                            bg=bg, anchor="w", justify="left", width=1)
         title.pack(side="left", fill="x", expand=True)
+        title.bind("<Configure>", lambda e: title.configure(wraplength=max(110, e.width)))
         if task.get("note") and not compact:
-            self._label(middle, task["note"], 8, self.colors["text_soft"], False, bg=self.colors["surface"], anchor="w").pack(fill="x", pady=(3, 0))
-        meta = tk.Frame(middle, bg=self.colors["surface"])
-        meta.pack(fill="x", pady=(6, 0))
+            note = self._label(middle, task["note"].splitlines()[0][:150], 9, colors["text_soft"],
+                                bg=bg, anchor="w", width=1)
+            note.pack(fill="x", pady=(5, 0))
+        parts = []
         if show_date:
-            planned = task.get("planned_date")
-            overdue = planned and planned < today_key() and task["status"] == "todo"
-            date_color = colors["high_ink"] if overdue else colors["strong"] if planned == today_key() else colors["warning_ink"] if planned == offset_date(1) else colors["text_faint"]
-            self._label(meta, f"◷  {date_text(planned)}", 8, date_color, bool(overdue), bg=self.colors["surface"]).pack(side="left", padx=(0, 11))
-        self.badge(meta, "生活" if task["category"] == "life" else "工作", "#FDF2E4" if task["category"] == "life" else colors["soft"], "#A06830" if task["category"] == "life" else "#A04868").pack(side="left", padx=(0, 6))
-        for tag in task.get("tags", [])[:2 if not compact else 1]:
-            self.badge(meta, f"#{tag}", "#F5EEF0", "#8B6B73").pack(side="left", padx=(0, 5))
+            parts.append(date_text(task.get("planned_date")))
+        parts.append(category_label(task["category"]))
+        parts.extend(f"#{tag}" for tag in task.get("tags", [])[:2])
         if task.get("goal_title"):
-            self.badge(meta, f"◎ {task['goal_title']}", colors["soft"], "#A04868").pack(side="left", padx=(0, 5))
+            parts.append("◎ " + task["goal_title"])
         if task.get("subtasks"):
             done = sum(1 for step in task["subtasks"] if step["completed"])
-            self._label(meta, f"☷ {done}/{len(task['subtasks'])}", 8, self.colors["text_faint"], False, bg=self.colors["surface"]).pack(side="left")
-        actions = tk.Frame(body, bg=self.colors["surface"])
-        actions.pack(side="right", padx=(6, 0))
-        self._button(actions, "详情", lambda tid=task["id"]: self.open_task_dialog(tid), "ghost").pack(side="left")
-        self._button(actions, "⋮", lambda tid=task["id"], widget=frame: self.open_context_menu(tid, widget), "ghost").pack(side="left")
+            parts.append(f"{done}/{len(task['subtasks'])} 步骤")
+        meta = self._label(middle, "   ".join(parts), 9, colors["text_soft"], bg=bg, anchor="w", width=1)
+        meta.pack(fill="x", pady=(6, 0))
+        actions = tk.Frame(frame, bg=bg)
+        actions.grid(row=0, column=2, sticky="ne", pady=10, padx=(10, 0))
+        self._button(actions, "编辑", lambda tid=task["id"]: self.open_task_dialog(tid), "ghost").pack(side="left")
+        self._button(actions, "⋯", lambda tid=task["id"], widget=frame: self.open_context_menu(tid, widget), "ghost").pack(side="left")
+        tk.Frame(frame, bg=colors["line"], height=1).grid(row=1, column=0, columnspan=3, sticky="ew")
         self._bind_right_click(frame, task["id"])
-        frame._task_id = task["id"]  # type: ignore[attr-defined]
-        frame.set_size()
-        for child in (frame, body, middle, title, meta):
+        frame._task_id = task["id"]
+        for child in (frame, middle, title, meta):
             child.bind("<Double-Button-1>", lambda _event, tid=task["id"]: self.open_task_dialog(tid))
             child.bind("<ButtonPress-1>", lambda event, tid=task["id"], row=frame: self._drag_start(event, tid, row), add="+")
             child.bind("<B1-Motion>", self._drag_motion, add="+")
@@ -169,18 +180,16 @@ class PrimitivesMixin:
         self.render()
 
     def empty_state(self, parent: tk.Misc, title: str, description: str, command=None) -> None:
-        box = Card(parent, app=self, tone="soft", stroke=True, padding=(24, 6))
+        bg = parent.cget("bg")
+        box = tk.Frame(parent, bg=bg)
         managers = {child.winfo_manager() for child in parent.winfo_children()}
         if "grid" in managers and "pack" not in managers:
-            box.grid(sticky="ew", pady=4)
+            box.grid(sticky="ew", pady=12)
         else:
-            box.pack(fill="x", pady=4)
-        body_bg = box.body.cget("bg")
-        PigMark(box.body, app=self, variant="mascot").pack(pady=(18, 6))
-        box.set_size()
-        self._label(box.body, title, 10, self.colors["text"], True, bg=body_bg).pack()
-        self._label(box.body, description, 8, self.colors["text_soft"], False, bg=body_bg).pack(pady=(4, 0))
+            box.pack(fill="x", pady=12)
+        PigMark(box, app=self, variant="mascot").pack(pady=(25, 14))
+        self._label(box, title, 13, self.colors["text"], True, bg=bg).pack()
+        self._label(box, description, 10, self.colors["text_soft"], bg=bg, wraplength=400, justify="center").pack(pady=(8, 0))
         if command:
-            PillButton(box.body, app=self, text="+ 新建第一条", command=command, kind="ghost", size="sm").pack(pady=(10, 18))
-        else:
-            self._label(box.body, "", 6, self.colors["text_soft"], False, bg=body_bg).pack(pady=(0, 14))
+            caption = "新建目标" if "目标" in title else "新建待办"
+            PillButton(box, app=self, text=caption, command=command, kind="soft").pack(pady=(18, 26))
