@@ -10,9 +10,9 @@ from ..util import date_text, offset_date, today_key
 class UpcomingMixin:
     def render_upcoming(self, parent: tk.Misc) -> None:
         self.page_header(parent, "轻量规划", "之后", "未来按日期展开，未安排的想法留在最底部，不占用计划完成率。", (str(len(self.db.list_tasks())), "项未来安排"))
-        toolbar = tk.Frame(parent, bg=self.BG)
+        toolbar = tk.Frame(parent, bg=self.colors["bg"])
         toolbar.grid(row=1, column=0, sticky="ew", pady=(0, 18))
-        self._label(toolbar, "把未来安排放在合适的日期，今天只看今天。", 9, self.TEXT_SOFT, False, bg=self.BG).pack(side="left")
+        self._label(toolbar, "把未来安排放在合适的日期，今天只看今天。", 9, self.colors["text_soft"], False, bg=self.colors["bg"]).pack(side="left")
         self._button(toolbar, "+ 添加到明天", lambda: self.open_new_task(date_key=offset_date(1)), "outline").pack(side="right")
         tasks = self.db.list_tasks()
         groups: dict[str, list[dict[str, Any]]] = {}
@@ -29,7 +29,7 @@ class UpcomingMixin:
             subtitle = "先记录，之后再决定" if key == "unplanned" else key
             self.section_title(parent, f"{title}  ·  {subtitle}", len(groups[key]), "添加", lambda value=None, key=key: self.open_new_task(date_key=None if key == "unplanned" else key)).grid(row=row, column=0, sticky="ew")
             row += 1
-            block = tk.Frame(parent, bg=self.BG)
+            block = tk.Frame(parent, bg=self.colors["bg"])
             block.grid(row=row, column=0, sticky="ew", pady=(0, 17))
             for task in sorted(groups[key], key=lambda item: self.db._task_sort_key(item, "upcoming")):
                 self.task_row(block, task, show_date=False)

@@ -14,22 +14,22 @@ class SearchMixin:
         if self.selected_task_ids:
             self.render_batch_bar(parent, row)
             row += 1
-        self._label(parent, f"待办  {len(result_tasks)}", 10, self.TEXT, True, bg=self.BG).grid(row=row, column=0, sticky="w", pady=(0, 9))
+        self._label(parent, f"待办  {len(result_tasks)}", 10, self.colors["text"], True, bg=self.colors["bg"]).grid(row=row, column=0, sticky="w", pady=(0, 9))
         row += 1
         if result_tasks:
-            task_block = tk.Frame(parent, bg=self.BG)
+            task_block = tk.Frame(parent, bg=self.colors["bg"])
             task_block.grid(row=row, column=0, sticky="ew")
             for task in result_tasks:
                 self.task_row(task_block, task, selectable=True)
             row += 1
         else:
-            self._label(parent, "没有匹配的待办。", 9, self.TEXT_SOFT, False, bg=self.BG).grid(row=row, column=0, sticky="w", padx=7, pady=(0, 18))
+            self._label(parent, "没有匹配的待办。", 9, self.colors["text_soft"], False, bg=self.colors["bg"]).grid(row=row, column=0, sticky="w", padx=7, pady=(0, 18))
             row += 1
-        self._label(parent, f"目标  {len(result_goals)}", 10, self.TEXT, True, bg=self.BG).grid(row=row, column=0, sticky="w", pady=(7, 9))
+        self._label(parent, f"目标  {len(result_goals)}", 10, self.colors["text"], True, bg=self.colors["bg"]).grid(row=row, column=0, sticky="w", pady=(7, 9))
         row += 1
         if result_goals:
             for goal in result_goals:
                 self.goal_card(parent, goal).grid(row=row, column=0, sticky="ew", pady=(0, 8))
                 row += 1
         else:
-            self._label(parent, "没有匹配的目标。", 9, self.TEXT_SOFT, False, bg=self.BG).grid(row=row, column=0, sticky="w", padx=7)
+            self._label(parent, "没有匹配的目标。", 9, self.colors["text_soft"], False, bg=self.colors["bg"]).grid(row=row, column=0, sticky="w", padx=7)

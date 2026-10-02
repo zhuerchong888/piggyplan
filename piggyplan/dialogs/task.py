@@ -27,18 +27,18 @@ class TaskDialogMixin:
         template = template or {}
         dialog = tk.Toplevel(self)
         dialog.title("编辑待办" if task else "新建待办")
-        dialog.configure(bg=self.BG)
+        dialog.configure(bg=self.colors["bg"])
         dialog.transient(self)
         dialog.grab_set()
         dialog.minsize(470, 520)
         dialog.geometry("540x730")
         dialog.columnconfigure(0, weight=1)
         dialog.rowconfigure(1, weight=1)
-        head = tk.Frame(dialog, bg=self.SURFACE)
+        head = tk.Frame(dialog, bg=self.colors["surface"])
         head.grid(row=0, column=0, sticky="ew")
-        self._label(head, "编辑待办" if task else "新建待办", 17, self.TEXT, True, bg=self.SURFACE).pack(anchor="w", padx=22, pady=(19, 3))
-        self._label(head, "标题先行，其他信息之后再补也可以。", 9, self.TEXT_SOFT, False, bg=self.SURFACE).pack(anchor="w", padx=22, pady=(0, 16))
-        form = tk.Frame(dialog, bg=self.BG)
+        self._label(head, "编辑待办" if task else "新建待办", 17, self.colors["text"], True, bg=self.colors["surface"]).pack(anchor="w", padx=22, pady=(19, 3))
+        self._label(head, "标题先行，其他信息之后再补也可以。", 9, self.colors["text_soft"], False, bg=self.colors["surface"]).pack(anchor="w", padx=22, pady=(0, 16))
+        form = tk.Frame(dialog, bg=self.colors["bg"])
         form.grid(row=1, column=0, sticky="nsew", padx=20, pady=16)
         form.columnconfigure(0, weight=1)
         title_var = tk.StringVar(value=task["title"] if task else template.get("title", ""))
@@ -59,10 +59,10 @@ class TaskDialogMixin:
         title_entry = ttk.Entry(form, textvariable=title_var, font=("Microsoft YaHei UI", 12))
         title_entry.grid(row=1, column=0, sticky="ew", pady=(0, 14), ipady=3)
         self._form_label(form, "备注详情（可选）", row=2)
-        note = tk.Text(form, height=4, wrap="word", bg=self.SURFACE_SOFT, fg=self.TEXT, relief="flat", bd=0, highlightbackground=self.SURFACE_SOFT, highlightcolor=self.colors["strong"], highlightthickness=1, font=("Microsoft YaHei UI", 9))
+        note = tk.Text(form, height=4, wrap="word", bg=self.colors["surface_soft"], fg=self.colors["text"], relief="flat", bd=0, highlightbackground=self.colors["surface_soft"], highlightcolor=self.colors["strong"], highlightthickness=1, font=("Microsoft YaHei UI", 9))
         note.grid(row=3, column=0, sticky="ew", pady=(0, 13))
         note.insert("1.0", note_default)
-        properties = tk.Frame(form, bg=self.BG)
+        properties = tk.Frame(form, bg=self.colors["bg"])
         properties.grid(row=4, column=0, sticky="ew", pady=(0, 10))
         for col in range(2): properties.columnconfigure(col, weight=1)
         self._form_label(properties, "分类", 0, 0)
@@ -74,7 +74,7 @@ class TaskDialogMixin:
         self._form_label(form, "计划日期（可留空）", row=5)
         date_entry = ttk.Entry(form, textvariable=date_var)
         date_entry.grid(row=6, column=0, sticky="ew", pady=(4, 1))
-        self._label(form, "格式 YYYY-MM-DD；只保存自然日，不设置截止时刻。", 8, self.TEXT_FAINT, False, bg=self.BG).grid(row=7, column=0, sticky="w", pady=(0, 11))
+        self._label(form, "格式 YYYY-MM-DD；只保存自然日，不设置截止时刻。", 8, self.colors["text_faint"], False, bg=self.colors["bg"]).grid(row=7, column=0, sticky="w", pady=(0, 11))
         self._form_label(form, "所属长期目标", row=8)
         goal_combo = ttk.Combobox(form, textvariable=goal_var, values=list(goal_values), state="readonly")
         goal_combo.grid(row=9, column=0, sticky="ew", pady=(4, 11))
@@ -83,24 +83,24 @@ class TaskDialogMixin:
         self._form_label(form, "子步骤（每行一个，可选）", row=12)
         step_completion: dict[str, tk.BooleanVar] = {}
         if task and task.get("subtasks"):
-            checklist = tk.Frame(form, bg=self.SURFACE_SOFT, highlightthickness=0)
+            checklist = tk.Frame(form, bg=self.colors["surface_soft"], highlightthickness=0)
             checklist.grid(row=13, column=0, sticky="ew", pady=(4, 7))
-            self._label(checklist, "逐项勾选（不会自动完成主待办）", 8, self.TEXT_FAINT, False, bg=self.SURFACE).pack(anchor="w", padx=9, pady=(7, 3))
+            self._label(checklist, "逐项勾选（不会自动完成主待办）", 8, self.colors["text_faint"], False, bg=self.colors["surface"]).pack(anchor="w", padx=9, pady=(7, 3))
             for step in task["subtasks"][:6]:
                 var = tk.BooleanVar(value=bool(step["completed"]))
                 step_completion[step["id"]] = var
-                tk.Checkbutton(checklist, text=step["title"], variable=var, command=lambda sid=step["id"], current=var: self.db.update_subtask(sid, completed=current.get()), anchor="w", bg=self.SURFACE, fg=self.TEXT, activebackground=self.SURFACE, selectcolor=self.SURFACE, highlightthickness=0, font=("Microsoft YaHei UI", 9)).pack(fill="x", padx=7, pady=1)
+                tk.Checkbutton(checklist, text=step["title"], variable=var, command=lambda sid=step["id"], current=var: self.db.update_subtask(sid, completed=current.get()), anchor="w", bg=self.colors["surface"], fg=self.colors["text"], activebackground=self.colors["surface"], selectcolor=self.colors["surface"], highlightthickness=0, font=("Microsoft YaHei UI", 9)).pack(fill="x", padx=7, pady=1)
             if len(task["subtasks"]) > 6:
-                self._label(checklist, f"其余 {len(task['subtasks']) - 6} 项可在下方文本中编辑。", 8, self.TEXT_FAINT, False, bg=self.SURFACE).pack(anchor="w", padx=9, pady=(3, 7))
-        steps = tk.Text(form, height=5, wrap="word", bg=self.SURFACE_SOFT, fg=self.TEXT, relief="flat", bd=0, highlightbackground=self.SURFACE_SOFT, highlightcolor=self.colors["strong"], highlightthickness=1, font=("Microsoft YaHei UI", 9))
+                self._label(checklist, f"其余 {len(task['subtasks']) - 6} 项可在下方文本中编辑。", 8, self.colors["text_faint"], False, bg=self.colors["surface"]).pack(anchor="w", padx=9, pady=(3, 7))
+        steps = tk.Text(form, height=5, wrap="word", bg=self.colors["surface_soft"], fg=self.colors["text"], relief="flat", bd=0, highlightbackground=self.colors["surface_soft"], highlightcolor=self.colors["strong"], highlightthickness=1, font=("Microsoft YaHei UI", 9))
         steps.grid(row=14, column=0, sticky="ew", pady=(4, 0))
         if task:
             steps.insert("1.0", "\n".join(step["title"] for step in task.get("subtasks", [])))
         elif template.get("subtasks"):
             steps.insert("1.0", "\n".join(template["subtasks"]))
-        footer = tk.Frame(dialog, bg=self.SURFACE_SOFT, highlightthickness=0)
+        footer = tk.Frame(dialog, bg=self.colors["surface_soft"], highlightthickness=0)
         footer.grid(row=2, column=0, sticky="ew")
-        error = tk.Label(footer, text="", bg=self.SURFACE, fg=self.HIGH, font=("Microsoft YaHei UI", 9))
+        error = tk.Label(footer, text="", bg=self.colors["surface"], fg=self.colors["high"], font=("Microsoft YaHei UI", 9))
         error.pack(side="left", padx=22)
         self._button(footer, "取消", dialog.destroy, "ghost").pack(side="right", padx=(0, 10), pady=13)
 
@@ -137,7 +137,7 @@ class TaskDialogMixin:
         title_entry.focus_set()
 
     def _form_label(self, parent: tk.Misc, text: str, row: int | None = None, col: int = 0, color: str | None = None) -> None:
-        label = self._label(parent, text, 8, color or self.TEXT_SOFT, True, bg=parent.cget("bg"))
+        label = self._label(parent, text, 8, color or self.colors["text_soft"], True, bg=parent.cget("bg"))
         if row is None:
             label.pack(anchor="w", pady=(0, 5))
         else:

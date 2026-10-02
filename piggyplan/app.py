@@ -10,7 +10,8 @@ import json
 import os
 import sys
 from datetime import date, datetime
-from .constants import APP_NAME, APP_VERSION, HOTKEY_DEFAULT, THEMES
+from .constants import APP_NAME, APP_VERSION, HOTKEY_DEFAULT
+from .tokens import THEME_KEYS, palette
 from .database import Database
 from .runtime.paths import app_backup_dir, app_data_dir, app_log_dir, log_event
 from .runtime.windows_integration import WindowsIntegration
@@ -46,21 +47,6 @@ class PiggyPlanApp(
 ):
     """Native desktop UI.  All writes go through Database."""
 
-    # Warm neutrals keep the pink theme recognisable without turning the
-    # workspace into a large coloured panel.  Surfaces are separated by tone
-    # and whitespace rather than a grid of hard outlines.
-    BG = "#FFF9F8"
-    SURFACE = "#FFFFFF"
-    SURFACE_SOFT = "#FFF1F5"
-    LINE = "#F7E8ED"
-    LINE_STRONG = "#EEC6D4"
-    TEXT = "#34272C"
-    TEXT_SOFT = "#806A72"
-    TEXT_FAINT = "#B8A4AC"
-    HIGH = "#D95F73"
-    WARNING = "#CB8750"
-    SUCCESS = "#55A781"
-
     def __init__(self, database: Database | None = None, start_minimized: bool = False):
         super().__init__()
         self.db = database or Database(app_data_dir() / "piggyplan.db")
@@ -79,7 +65,7 @@ class PiggyPlanApp(
             if key not in self.settings:
                 self.db.set_setting(key, value)
                 self.settings[key] = value
-        self.theme_key = self.settings.get("theme", "pink") if self.settings.get("theme", "pink") in THEMES else next(iter(THEMES))
+        self.theme_key = self.settings.get("theme", "pink") if self.settings.get("theme", "pink") in THEME_KEYS else THEME_KEYS[0]
         startup_page = self.settings.get("startup_page", self.settings.get("last_view", "today"))
         self.view = startup_page if startup_page in {"today", "upcoming", "all", "goals", "archive", "settings"} else "today"
         self.selected_goal_id: str | None = None
@@ -104,7 +90,7 @@ class PiggyPlanApp(
         self._drag_widget: tk.Widget | None = None
         self._drag_start_y = 0
         self.start_minimized = start_minimized or self.settings.get("startup_minimized") == "1"
-        self.configure(bg=self.BG)
+        self.configure(bg=self.colors["bg"])
         self.title(APP_NAME)
         self.minsize(860, 600)
         geometry = self.settings.get("geometry", "1160x760")
@@ -126,8 +112,14 @@ class PiggyPlanApp(
 
     @property
     def colors(self) -> dict[str, str]:
-        theme = THEMES[self.theme_key]
-        return {**theme, "bg": self.BG, "surface": self.SURFACE, "soft_surface": self.SURFACE_SOFT, "line": self.LINE, "text": self.TEXT, "text_soft": self.TEXT_SOFT, "text_faint": self.TEXT_FAINT, "high": self.HIGH, "warning": self.WARNING, "success": self.SUCCESS}
+        """按当前主题返回展平的 token 色表；结果按主题缓存（调用方只读）。"""
+        if not hasattr(self, "_colors_cache"):
+            self._colors_cache: dict[str, dict[str, str]] = {}
+        cached = self._colors_cache.get(self.theme_key)
+        if cached is None:
+            cached = palette(self.theme_key)
+            self._colors_cache[self.theme_key] = cached
+        return cached
 
     def _configure_styles(self) -> None:
         style = ttk.Style(self)
@@ -148,31 +140,31 @@ class PiggyPlanApp(
         self.sidebar = tk.Frame(self, width=248, bg=self.colors["soft_surface"], highlightthickness=0)
         self.sidebar.grid(row=0, column=0, sticky="nsew")
         self.sidebar.grid_propagate(False)
-        self.main = tk.Frame(self, bg=self.BG)
+        self.main = tk.Frame(self, bg=self.colors["bg"])
         self.main.grid(row=0, column=1, sticky="nsew")
         self.main.grid_rowconfigure(1, weight=1)
         self.main.grid_columnconfigure(0, weight=1)
-        self.header = tk.Frame(self.main, bg=self.BG, height=76)
+        self.header = tk.Frame(self.main, bg=self.colors["bg"], height=76)
         self.header.grid(row=0, column=0, sticky="ew")
         self.header.grid_columnconfigure(2, weight=1)
-        self.body = tk.Frame(self.main, bg=self.BG)
+        self.body = tk.Frame(self.main, bg=self.colors["bg"])
         self.body.grid(row=1, column=0, sticky="nsew")
         self.body.grid_rowconfigure(0, weight=1)
         self.body.grid_columnconfigure(0, weight=1)
-        self.canvas = tk.Canvas(self.body, bg=self.BG, highlightthickness=0, bd=0)
+        self.canvas = tk.Canvas(self.body, bg=self.colors["bg"], highlightthickness=0, bd=0)
         self.scrollbar = ttk.Scrollbar(self.body, orient="vertical", command=self.canvas.yview, style="Vertical.TScrollbar")
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
         self.canvas.grid(row=0, column=0, sticky="nsew")
         self.scrollbar.grid(row=0, column=1, sticky="ns")
-        self.page = tk.Frame(self.canvas, bg=self.BG)
+        self.page = tk.Frame(self.canvas, bg=self.colors["bg"])
         self.page_window = self.canvas.create_window((0, 0), window=self.page, anchor="nw")
         self.page.bind("<Configure>", lambda _event: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
         self.canvas.bind("<Configure>", lambda event: self.canvas.itemconfigure(self.page_window, width=event.width))
         self.page.grid_columnconfigure(0, weight=1)
         self.page.grid_columnconfigure(1, minsize=266)
-        self.center = tk.Frame(self.page, bg=self.BG)
+        self.center = tk.Frame(self.page, bg=self.colors["bg"])
         self.center.grid(row=0, column=0, sticky="nsew", padx=(34, 22), pady=(30, 40))
-        self.rail = tk.Frame(self.page, bg=self.BG, width=266)
+        self.rail = tk.Frame(self.page, bg=self.colors["bg"], width=266)
         self.rail.grid(row=0, column=1, sticky="nsew", padx=(0, 34), pady=(30, 40))
         self._build_header()
         self._build_sidebar()
@@ -182,11 +174,11 @@ class PiggyPlanApp(
         self.header.grid_columnconfigure(1, weight=0)
         self.header.grid_columnconfigure(2, weight=1)
         self.header.grid_columnconfigure(3, weight=0)
-        self.header_title = tk.Label(self.header, text="今天", bg=self.BG, fg=self.TEXT, font=("Microsoft YaHei UI", 23, "bold"))
+        self.header_title = tk.Label(self.header, text="今天", bg=self.colors["bg"], fg=self.colors["text"], font=("Microsoft YaHei UI", 23, "bold"))
         self.header_title.grid(row=0, column=0, sticky="w", padx=(34, 10), pady=(22, 0))
-        self.header_caption = tk.Label(self.header, text=today_text(), bg=self.BG, fg=self.TEXT_SOFT, font=("Microsoft YaHei UI", 10))
+        self.header_caption = tk.Label(self.header, text=today_text(), bg=self.colors["bg"], fg=self.colors["text_soft"], font=("Microsoft YaHei UI", 10))
         self.header_caption.grid(row=1, column=0, sticky="w", padx=(34, 10), pady=(2, 18))
-        search_wrap = tk.Frame(self.header, bg=self.BG)
+        search_wrap = tk.Frame(self.header, bg=self.colors["bg"])
         search_wrap.grid(row=0, column=2, rowspan=2, sticky="ew", padx=26, pady=23)
         search_wrap.grid_columnconfigure(0, weight=1)
         self.search_entry = ttk.Entry(search_wrap, textvariable=self.search_var)
@@ -203,8 +195,8 @@ class PiggyPlanApp(
         self._pig_mark(brand).pack(side="left")
         brand_text = tk.Frame(brand, bg=self.colors["soft_surface"])
         brand_text.pack(side="left", padx=10)
-        tk.Label(brand_text, text="日常", bg=self.colors["soft_surface"], fg=self.TEXT, font=("Microsoft YaHei UI", 17, "bold")).pack(anchor="w")
-        tk.Label(brand_text, text="PIGGYPLAN · LOCAL FIRST", bg=self.colors["soft_surface"], fg=self.TEXT_FAINT, font=("Segoe UI", 7, "bold")).pack(anchor="w", pady=(1, 0))
+        tk.Label(brand_text, text="日常", bg=self.colors["soft_surface"], fg=self.colors["text"], font=("Microsoft YaHei UI", 17, "bold")).pack(anchor="w")
+        tk.Label(brand_text, text="PIGGYPLAN · LOCAL FIRST", bg=self.colors["soft_surface"], fg=self.colors["text_faint"], font=("Segoe UI", 7, "bold")).pack(anchor="w", pady=(1, 0))
         self.sidebar_new = self._button(self.sidebar, "+  新建待办", self.open_new_task, "primary", width=24)
         self.sidebar_new.grid(row=1, column=0, sticky="ew", padx=16, pady=(0, 20), ipady=4)
         self.nav_frame = tk.Frame(self.sidebar, bg=self.colors["soft_surface"])
@@ -213,18 +205,18 @@ class PiggyPlanApp(
         self._nav_button("today", "今日清单", 0)
         self._nav_button("upcoming", "之后安排", 1)
         self._nav_button("all", "全部待办", 2, True)
-        tk.Frame(self.nav_frame, bg=self.LINE, height=1).grid(row=3, column=0, sticky="ew", padx=10, pady=(13, 10))
+        tk.Frame(self.nav_frame, bg=self.colors["line"], height=1).grid(row=3, column=0, sticky="ew", padx=10, pady=(13, 10))
         self._nav_button("goals", "长期目标", 4, True)
         self._nav_button("archive", "完成归档", 5)
-        tk.Frame(self.nav_frame, bg=self.LINE, height=1).grid(row=6, column=0, sticky="ew", padx=10, pady=(13, 10))
+        tk.Frame(self.nav_frame, bg=self.colors["line"], height=1).grid(row=6, column=0, sticky="ew", padx=10, pady=(13, 10))
         self._nav_button("settings", "偏好设置", 7)
         footer = tk.Frame(self.sidebar, bg=self.colors["soft_surface"])
         footer.grid(row=11, column=0, sticky="sew", padx=16, pady=17)
         footer_card = tk.Frame(footer, bg=self.colors["soft"], highlightthickness=0)
         footer_card.pack(fill="x")
         tk.Label(footer_card, text="小猪的本地日常", bg=self.colors["soft"], fg=self.colors["strong"], font=("Microsoft YaHei UI", 10, "bold")).pack(anchor="w", padx=14, pady=(12, 2))
-        tk.Label(footer_card, text="数据只保存在本机 SQLite\n不联网，也能安心使用", justify="left", bg=self.colors["soft"], fg=self.TEXT_SOFT, font=("Microsoft YaHei UI", 9)).pack(anchor="w", padx=14, pady=(0, 12))
-        tk.Label(footer, text=f"版本 {APP_VERSION}", bg=self.colors["soft_surface"], fg=self.TEXT_FAINT, font=("Microsoft YaHei UI", 8)).pack(anchor="w", pady=(9, 0))
+        tk.Label(footer_card, text="数据只保存在本机 SQLite\n不联网，也能安心使用", justify="left", bg=self.colors["soft"], fg=self.colors["text_soft"], font=("Microsoft YaHei UI", 9)).pack(anchor="w", padx=14, pady=(0, 12))
+        tk.Label(footer, text=f"版本 {APP_VERSION}", bg=self.colors["soft_surface"], fg=self.colors["text_faint"], font=("Microsoft YaHei UI", 8)).pack(anchor="w", pady=(9, 0))
 
     def _nav_button(self, view: str, text: str, row: int, show_count: bool = False) -> None:
         frame = tk.Frame(self.nav_frame, bg=self.colors["soft_surface"])
@@ -261,15 +253,15 @@ class PiggyPlanApp(
         canvas.create_oval(5, 7, 39, 41, fill=colors["accent"], outline="")
         canvas.create_polygon(8, 13, 7, 3, 17, 9, fill=colors["accent"], outline="")
         canvas.create_polygon(36, 13, 37, 3, 27, 9, fill=colors["accent"], outline="")
-        canvas.create_oval(14, 18, 17, 21, fill=self.TEXT, outline="")
-        canvas.create_oval(27, 18, 30, 21, fill=self.TEXT, outline="")
+        canvas.create_oval(14, 18, 17, 21, fill=self.colors["text"], outline="")
+        canvas.create_oval(27, 18, 30, 21, fill=self.colors["text"], outline="")
         canvas.create_oval(15, 25, 29, 35, fill="#F9AFC4", outline="")
         canvas.create_oval(18, 28, 21, 31, fill="#A94E6D", outline="")
         canvas.create_oval(23, 28, 26, 31, fill="#A94E6D", outline="")
         return canvas
 
     def _label(self, parent: tk.Misc, text: str, size: int = 10, color: str | None = None, bold: bool = False, **kwargs) -> tk.Label:
-        return tk.Label(parent, text=text, bg=kwargs.pop("bg", self.BG), fg=color or self.TEXT, font=("Microsoft YaHei UI", size, "bold" if bold else "normal"), **kwargs)
+        return tk.Label(parent, text=text, bg=kwargs.pop("bg", self.colors["bg"]), fg=color or self.colors["text"], font=("Microsoft YaHei UI", size, "bold" if bold else "normal"), **kwargs)
 
     def _bind_shortcuts(self) -> None:
         self.bind_all("<Control-n>", lambda _event: self.open_new_task())
@@ -311,7 +303,7 @@ class PiggyPlanApp(
             self.tray_menu.destroy()
         remaining = len(self.db.list_tasks())
         startup_label = "开机自启  ✓" if self.settings.get("startup_enabled") == "1" else "开机自启"
-        menu = tk.Menu(self, tearoff=0, bg=self.SURFACE, fg=self.TEXT, activebackground=self.colors["soft"], activeforeground=self.TEXT, bd=0, relief="flat", font=("Microsoft YaHei UI", 9))
+        menu = tk.Menu(self, tearoff=0, bg=self.colors["surface"], fg=self.colors["text"], activebackground=self.colors["soft"], activeforeground=self.colors["text"], bd=0, relief="flat", font=("Microsoft YaHei UI", 9))
         menu.add_command(label="快速添加待办", command=self.open_quick_add)
         menu.add_command(label="打开主界面", command=self.show_main_window)
         menu.add_command(label=f"今天剩余 {remaining} 项", command=lambda: self.show_main_window() or self.navigate("today"))
@@ -374,7 +366,7 @@ class PiggyPlanApp(
             self.db.backup_database(before)
             self.db.import_json(path)
             self.settings = self.db.settings()
-            self.theme_key = self.settings.get("theme", "pink") if self.settings.get("theme", "pink") in THEMES else next(iter(THEMES))
+            self.theme_key = self.settings.get("theme", "pink") if self.settings.get("theme", "pink") in THEME_KEYS else THEME_KEYS[0]
             self.selected_goal_id = None
             self.selected_task_ids.clear()
             if self.integration.available:
@@ -503,7 +495,7 @@ class PiggyPlanApp(
         colors = self.colors
         for view, button in self.nav_buttons.items():
             active = (view == "goals" and self.selected_goal_id) or (view == self.view and not self.search_var.get().strip() and not self.selected_goal_id)
-            button.configure(bg=colors["accent"] if active else colors["soft_surface"], fg=colors["strong"] if active else self.TEXT_SOFT, activebackground=colors["soft"] if active else colors["surface"], font=("Microsoft YaHei UI", 10, "bold" if active else "normal"))
+            button.configure(bg=colors["accent"] if active else colors["soft_surface"], fg=colors["strong"] if active else self.colors["text_soft"], activebackground=colors["soft"] if active else colors["surface"], font=("Microsoft YaHei UI", 10, "bold" if active else "normal"))
             count_label = getattr(button, "_count_label", None)
             if count_label:
                 if view == "today":
@@ -512,7 +504,7 @@ class PiggyPlanApp(
                     count_label.configure(text=str(len(self.db.list_tasks())))
                 elif view == "goals":
                     count_label.configure(text=str(len(self.db.list_goals(status="active"))))
-                count_label.configure(bg=colors["accent"] if active else colors["soft_surface"], fg=colors["strong"] if active else self.TEXT_FAINT)
+                count_label.configure(bg=colors["accent"] if active else colors["soft_surface"], fg=colors["strong"] if active else self.colors["text_faint"])
 
     def toggle_completed(self) -> None:
         self.completed_open = not self.completed_open
@@ -597,7 +589,7 @@ class PiggyPlanApp(
         self.show_toast(f"全局快捷键已设为 {display_hotkey(normalized)}")
 
     def set_theme(self, theme_key: str) -> None:
-        if theme_key in THEMES:
+        if theme_key in THEME_KEYS:
             self.theme_key = theme_key
             self.db.set_setting("theme", theme_key)
             self.render()

@@ -77,6 +77,7 @@ def run_self_test() -> None:
         assert len(restored.list_tasks(include_completed=True, status="all")) == before_invalid
         restored.close()
         db.close()
+    run_design_assertions()
     print("desktop-database-self-test: ok")
 
 
@@ -129,3 +130,29 @@ def run_gui_smoke_test() -> None:
             else:
                 database.close()
     print("native-gui-smoke-test: ok")
+
+
+def run_design_assertions() -> None:
+    """把 spec 的两条硬规则钉死：文字色必须达 AA，且 <=9pt 不得加粗。"""
+    from .tokens import NEUTRAL, SEMANTIC, THEMES, contrast, font_rules
+
+    surfaces = {
+        "surface": "#FFFFFF",
+        "bg": NEUTRAL["bg"],
+        "surface_soft": NEUTRAL["surface_soft"],
+    }
+    for key, theme in THEMES.items():
+        for bg_name, bg in surfaces.items():
+            ratio = contrast(theme["ink"], bg)
+            assert ratio >= 4.5, f"{key}.ink on {bg_name} = {ratio:.2f}, 需 >= 4.5"
+        assert contrast(theme["accent"], "#FFFFFF") < 4.5 or theme["accent"] == theme["ink"], \
+            f"{key}.accent 不该同时是文字色——两级制要求它只做图形"
+    for role, spec in SEMANTIC.items():
+        assert contrast(spec["ink"], "#FFFFFF") >= 4.5, f"{role}.ink 未达 AA"
+        assert contrast(spec["shape"], "#FFFFFF") < contrast(spec["ink"], "#FFFFFF"), \
+            f"{role}.shape 比 .ink 更亮，两级制被破坏"
+    for name, (family, size, weight) in font_rules().items():
+        if size <= 9:
+            # 唯一例外：Microsoft YaHei UI 无 Medium 字族，micro 角色允许 bold。
+            assert weight in ("normal", "medium", "Medium") or (name == "micro" and family == "Microsoft YaHei UI"), \
+                f"{name} 为 {size}pt 却用了 {weight}：CJK 小字号加粗会糊"

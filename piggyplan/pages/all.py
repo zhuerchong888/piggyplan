@@ -11,11 +11,11 @@ class AllMixin:
         tasks = self.db.list_tasks(include_completed=self.filter_values["status"] != "todo", mode="all", category=self.filter_values["category"], priority=self.filter_values["priority"], status=self.filter_values["status"])
         tasks = self._apply_task_filters(tasks)
         self.page_header(parent, "全局掌握", "全部待办", "工作与生活放在同一条执行线上，日期通过显式操作调整。", (str(len(tasks)), "符合当前筛选"))
-        toolbar = tk.Frame(parent, bg=self.BG)
+        toolbar = tk.Frame(parent, bg=self.colors["bg"])
         toolbar.grid(row=1, column=0, sticky="ew", pady=(0, 13))
         self._button(toolbar, "筛选", self.open_filter_dialog, "outline").pack(side="left")
-        self._label(toolbar, self._filter_summary(), 8, self.TEXT_SOFT, False, bg=self.BG).pack(side="left", padx=9)
-        modes = tk.Frame(toolbar, bg=self.SURFACE_SOFT, highlightthickness=0)
+        self._label(toolbar, self._filter_summary(), 8, self.colors["text_soft"], False, bg=self.colors["bg"]).pack(side="left", padx=9)
+        modes = tk.Frame(toolbar, bg=self.colors["surface_soft"], highlightthickness=0)
         modes.pack(side="right")
         self._button(modes, "列表", lambda: self._set_all_mode("list"), "primary" if self.all_mode == "list" else "ghost").pack(side="left", padx=3, pady=3)
         self._button(modes, "看板", lambda: self._set_all_mode("board"), "primary" if self.all_mode == "board" else "ghost").pack(side="left", padx=3, pady=3)
@@ -32,14 +32,14 @@ class AllMixin:
             return
         for priority, title in (("high", "高优先级"), ("normal", "普通优先级")):
             subset = [task for task in tasks if task["priority"] == priority]
-            self.section_title(parent, title, len(subset), color=self.HIGH if priority == "high" else self.TEXT_SOFT).grid(row=row, column=0, sticky="ew")
+            self.section_title(parent, title, len(subset), color=self.colors["high"] if priority == "high" else self.colors["text_soft"]).grid(row=row, column=0, sticky="ew")
             row += 1
-            block = tk.Frame(parent, bg=self.BG)
+            block = tk.Frame(parent, bg=self.colors["bg"])
             block.grid(row=row, column=0, sticky="ew", pady=(0, 18))
             for task in subset:
                 self.task_row(block, task, selectable=True)
             if not subset:
-                self._label(block, "这一组暂时是空的。", 8, self.TEXT_FAINT, False, bg=self.BG).pack(anchor="w", padx=12, pady=8)
+                self._label(block, "这一组暂时是空的。", 8, self.colors["text_faint"], False, bg=self.colors["bg"]).pack(anchor="w", padx=12, pady=8)
             row += 1
 
     def _apply_task_filters(self, tasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -68,8 +68,8 @@ class AllMixin:
         self._label(bar, f"已选择 {len(self.selected_task_ids)} 项", 9, "#A04868", True, bg=self.colors["soft"]).pack(side="left", padx=12, pady=9)
         for text, callback in (("清除", lambda: (self.selected_task_ids.clear(), self.render())), ("删除", self.batch_delete), ("设置日期", self.batch_set_date), ("完成", self.batch_complete)):
             self._button(bar, text, callback, "ghost").pack(side="right", padx=(0, 4), pady=4)
-        more = tk.Menubutton(bar, text="更多操作 ▾", relief="flat", bd=0, bg=self.SURFACE, fg=self.TEXT_SOFT, activebackground=self.colors["accent"], font=("Microsoft YaHei UI", 9), cursor="hand2", padx=10, pady=7)
-        menu = tk.Menu(more, tearoff=0, bg=self.SURFACE, fg=self.TEXT, activebackground=self.colors["soft"], activeforeground=self.TEXT, bd=0)
+        more = tk.Menubutton(bar, text="更多操作 ▾", relief="flat", bd=0, bg=self.colors["surface"], fg=self.colors["text_soft"], activebackground=self.colors["accent"], font=("Microsoft YaHei UI", 9), cursor="hand2", padx=10, pady=7)
+        menu = tk.Menu(more, tearoff=0, bg=self.colors["surface"], fg=self.colors["text"], activebackground=self.colors["soft"], activeforeground=self.colors["text"], bd=0)
         menu.add_command(label="分类：工作", command=lambda: self.batch_set("category", "work"))
         menu.add_command(label="分类：生活", command=lambda: self.batch_set("category", "life"))
         menu.add_separator()
@@ -82,23 +82,23 @@ class AllMixin:
         more.pack(side="right", padx=(0, 4), pady=4)
 
     def render_board(self, parent: tk.Misc, tasks: list[dict[str, Any]], row: int, goal_id: str | None = None) -> None:
-        board = tk.Frame(parent, bg=self.BG)
+        board = tk.Frame(parent, bg=self.colors["bg"])
         board.grid(row=row, column=0, sticky="ew")
         todo = [task for task in tasks if task["status"] == "todo"]
         completed = self.db.list_tasks(include_completed=True, status="completed", category=self.filter_values["category"], priority=self.filter_values["priority"], goal_id=goal_id)
         completed = self._apply_task_filters(completed)
         for col, (title, values, status) in enumerate((("待办", todo, "todo"), ("已完成", completed, "completed"))):
-            column = tk.Frame(board, bg=self.SURFACE_SOFT, highlightthickness=0)
+            column = tk.Frame(board, bg=self.colors["surface_soft"], highlightthickness=0)
             column.grid(row=0, column=col, sticky="nsew", padx=(0, 10) if col == 0 else (10, 0))
             board.grid_columnconfigure(col, weight=1)
-            head = tk.Frame(column, bg=self.SURFACE_SOFT)
+            head = tk.Frame(column, bg=self.colors["surface_soft"])
             head.pack(fill="x", padx=14, pady=12)
-            self._label(head, title, 10, self.TEXT, True, bg=self.SURFACE_SOFT).pack(side="left")
-            self.badge(head, str(len(values)), self.SURFACE, self.TEXT_SOFT).pack(side="right")
-            body = tk.Frame(column, bg=self.SURFACE_SOFT)
+            self._label(head, title, 10, self.colors["text"], True, bg=self.colors["surface_soft"]).pack(side="left")
+            self.badge(head, str(len(values)), self.colors["surface"], self.colors["text_soft"]).pack(side="right")
+            body = tk.Frame(column, bg=self.colors["surface_soft"])
             body.pack(fill="both", expand=True, padx=10, pady=(0, 10))
             if values:
                 for task in values:
                     self.task_row(body, task, compact=True, selectable=True)
             else:
-                self._label(body, "这一栏暂时是空的。", 8, self.TEXT_FAINT, False, bg=self.SURFACE_SOFT).pack(anchor="w", padx=8, pady=14)
+                self._label(body, "这一栏暂时是空的。", 8, self.colors["text_faint"], False, bg=self.colors["surface_soft"]).pack(anchor="w", padx=8, pady=14)

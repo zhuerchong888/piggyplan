@@ -67,21 +67,21 @@ class BatchMixin:
             return
         dialog = tk.Toplevel(self)
         dialog.title("批量设置计划日期")
-        dialog.configure(bg=self.BG)
+        dialog.configure(bg=self.colors["bg"])
         dialog.transient(self)
         dialog.grab_set()
         dialog.geometry("390x205")
-        self._label(dialog, "批量设置计划日期", 15, self.TEXT, True, bg=self.BG).pack(anchor="w", padx=20, pady=(19, 3))
-        self._label(dialog, f"将修改已选择的 {len(tasks)} 项；未安排不会进入计划完成率。", 8, self.TEXT_SOFT, False, bg=self.BG).pack(anchor="w", padx=20)
-        row = tk.Frame(dialog, bg=self.BG)
+        self._label(dialog, "批量设置计划日期", 15, self.colors["text"], True, bg=self.colors["bg"]).pack(anchor="w", padx=20, pady=(19, 3))
+        self._label(dialog, f"将修改已选择的 {len(tasks)} 项；未安排不会进入计划完成率。", 8, self.colors["text_soft"], False, bg=self.colors["bg"]).pack(anchor="w", padx=20)
+        row = tk.Frame(dialog, bg=self.colors["bg"])
         row.pack(fill="x", padx=20, pady=16)
         date_var = tk.StringVar()
         ttk.Entry(row, textvariable=date_var, width=15).pack(side="left")
         for label, value in (("今天", today_key()), ("明天", offset_date(1)), ("未安排", "")):
             self._button(row, label, lambda value=value: date_var.set(value), "ghost").pack(side="left", padx=(6, 0))
-        error = self._label(dialog, "", 8, self.HIGH, False, bg=self.BG)
+        error = self._label(dialog, "", 8, self.colors["high"], False, bg=self.colors["bg"])
         error.pack(anchor="w", padx=20)
-        footer = tk.Frame(dialog, bg=self.SURFACE_SOFT, highlightthickness=0)
+        footer = tk.Frame(dialog, bg=self.colors["surface_soft"], highlightthickness=0)
         footer.pack(fill="x", side="bottom")
 
         def apply() -> None:
@@ -121,15 +121,15 @@ class BatchMixin:
             return
         dialog = tk.Toplevel(self)
         dialog.title("挂载到目标")
-        dialog.configure(bg=self.BG)
+        dialog.configure(bg=self.colors["bg"])
         dialog.transient(self)
         dialog.grab_set()
         dialog.geometry("390x180")
-        self._label(dialog, "挂载到长期目标", 15, self.TEXT, True, bg=self.BG).pack(anchor="w", padx=20, pady=(19, 12))
+        self._label(dialog, "挂载到长期目标", 15, self.colors["text"], True, bg=self.colors["bg"]).pack(anchor="w", padx=20, pady=(19, 12))
         values = {goal["title"]: goal["id"] for goal in goals}
         selected = tk.StringVar(value=next(iter(values)))
         ttk.Combobox(dialog, textvariable=selected, values=list(values), state="readonly", width=30).pack(anchor="w", padx=20)
-        footer = tk.Frame(dialog, bg=self.SURFACE_SOFT, highlightthickness=0)
+        footer = tk.Frame(dialog, bg=self.colors["surface_soft"], highlightthickness=0)
         footer.pack(fill="x", side="bottom", pady=(22, 0))
 
         def apply() -> None:

@@ -12,7 +12,7 @@ class MenuMixin:
         task = self.db.get_task(task_id)
         if not task:
             return
-        menu = tk.Menu(self, tearoff=0, bg=self.SURFACE, fg=self.TEXT, activebackground=self.colors["soft"], activeforeground=self.TEXT, bd=0, relief="flat", font=("Microsoft YaHei UI", 9))
+        menu = tk.Menu(self, tearoff=0, bg=self.colors["surface"], fg=self.colors["text"], activebackground=self.colors["soft"], activeforeground=self.colors["text"], bd=0, relief="flat", font=("Microsoft YaHei UI", 9))
         menu.add_command(label="完成" if task["status"] == "todo" else "撤销完成", command=lambda: self.toggle_task(task_id))
         menu.add_command(label="编辑", command=lambda: self.open_task_dialog(task_id))
         menu.add_separator()
