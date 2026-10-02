@@ -7,8 +7,10 @@
   "scripts": {
     "start": "python piggyplan_desktop.py",
     "desktop": "python piggyplan_desktop.py",
-    "web": "node server.mjs",
     "test": "python piggyplan_desktop.py --self-test",
-    "test:gui": "python piggyplan_desktop.py --gui-smoke"
+    "test:gui": "python piggyplan_desktop.py --gui-smoke",
+    "assets": "python tools/build_assets.py",
+    "shots": "python tools/shoot.py",
+    "web": "node legacy/server.mjs"
   }
 }

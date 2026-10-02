@@ -36,6 +36,7 @@ python piggyplan_desktop.py
 - 列表 / 两栏看板、全局搜索、筛选、待办与目标归档
 - 实际完成数量、有效计划、按计划日完成率和最近 7 天图表
 - JSON 完整备份与恢复、CSV 历史导出、每日 SQLite 自动快照
+- 品牌视觉层：以猪形象为源的两级强调色（accent 只做图形、ink 才做文字，全部达 WCAG AA）、自绘圆角卡片/胶囊按钮、心形优先级标记与猪鼻分节标记，猪形象延伸到窗口/托盘图标与空状态插画
 - 四套浅色主题、窗口尺寸记忆、窄窗口隐藏概览栏、跨午夜刷新
 - 系统托盘、关闭到托盘、开机自启和全局快捷添加
 - 窗口内快捷键：`Ctrl + N`、`Ctrl + F`、`Ctrl + 1/2/3`
@@ -50,10 +51,33 @@ python piggyplan_desktop.py --self-test
 python piggyplan_desktop.py --gui-smoke
 ```
 
+重建猪形象资产（`assets_src/piggy.png` -> `piggyplan/assets.py` 与 `icon.ico`）与截图夹具：
+
+```powershell
+npm run assets
+npm run shots
+```
+
 也可以运行：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\verify.ps1
 ```
 
-旧的浏览器/PWA实现仍保留作界面参考，需要时可用 `npm run web` 启动；正式本地桌面版入口是 `piggyplan_desktop.py`。
+旧的浏览器/PWA 实现已移入 `legacy/` 保留作界面参考，需要时可用 `npm run web` 启动；正式本地桌面版入口是 `piggyplan_desktop.py`。
+
+## 代码结构
+
+```text
+piggyplan_desktop.py    薄入口（.bat、开机自启、PyInstaller 都按这个名字引用）
+piggyplan/
+  constants.py util.py database.py tokens.py png.py assets.py selftest.py app.py
+  runtime/    Tcl 修复、单实例、托盘与全局热键、数据目录
+  ui/         shape（圆角与假抗锯齿）、widgets（Card/PillButton 等）、mascot、dialog、toast、menu、primitives
+  pages/      today / upcoming / all / goals / archive / search / rail / settings
+  dialogs/    task / goal / filter / quick_add / goal_decision
+  features/   batch（批量操作）/ tasks（单任务操作）
+tools/        build_assets.py（资产生成）、shoot.py（截图夹具）
+assets_src/   猪形象原图（仅构建期使用）
+legacy/       旧 PWA 七个文件
+```
