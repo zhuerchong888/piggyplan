@@ -78,6 +78,7 @@ def run_self_test() -> None:
         restored.close()
         db.close()
     run_design_assertions()
+    run_png_assertions()
     print("desktop-database-self-test: ok")
 
 
@@ -156,3 +157,23 @@ def run_design_assertions() -> None:
             # 唯一例外：Microsoft YaHei UI 无 Medium 字族，micro 角色允许 bold。
             assert weight in ("normal", "medium", "Medium") or (name == "micro" and family == "Microsoft YaHei UI"), \
                 f"{name} 为 {size}pt 却用了 {weight}：CJK 小字号加粗会糊"
+
+
+def run_png_assertions() -> None:
+    from . import assets, png
+
+    payload = assets.RAW["mascot"]
+    assert payload[:8] == b'\x89PNG\r\n\x1a\n', "assets 里存的必须是 PNG 字节"
+    width, height, rgba = png.decode(payload)
+    assert width == 120, f"mascot 宽度应为 120，实际 {width}"
+    assert rgba[3] == 0, "左上角应透明——白底没抠净就是这里抓到"
+    assert any(rgba[i] == 255 for i in range(3, len(rgba), 4)), "整张图不该全透明"
+
+    small_width, small_height = 16, max(1, round(16 * height / width))
+    shrunk = png.resize(width, height, rgba, small_width, small_height)
+    assert len(shrunk) == small_width * small_height * 4
+
+    encoded = png.encode(width, height, bytes(rgba))
+    back_width, back_height, back = png.decode(encoded)
+    assert (back_width, back_height) == (width, height)
+    assert bytes(back) == bytes(rgba), "encode/decode 必须无损往返"
