@@ -79,6 +79,7 @@ def run_self_test() -> None:
         db.close()
     run_design_assertions()
     run_png_assertions()
+    run_shape_assertions()
     print("desktop-database-self-test: ok")
 
 
@@ -177,3 +178,11 @@ def run_png_assertions() -> None:
     back_width, back_height, back = png.decode(encoded)
     assert (back_width, back_height) == (width, height)
     assert bytes(back) == bytes(rgba), "encode/decode 必须无损往返"
+
+
+def run_shape_assertions() -> None:
+    from .ui.shape import mix
+
+    assert mix("#FFFFFF", "#000000", 0.5) == "#808080"
+    assert mix("#FDECF1", "#FFFFFF", 0.0) == "#FDECF1"
+    assert mix("#FDECF1", "#FFFFFF", 1.0) == "#FFFFFF"
