@@ -32,7 +32,7 @@ class AllMixin:
             return
         for priority, title in (("high", "高优先级"), ("normal", "普通优先级")):
             subset = [task for task in tasks if task["priority"] == priority]
-            self.section_title(parent, title, len(subset), color=self.colors["high"] if priority == "high" else self.colors["text_soft"]).grid(row=row, column=0, sticky="ew")
+            self.section_title(parent, title, len(subset), color=self.colors["high_ink"] if priority == "high" else self.colors["text_soft"]).grid(row=row, column=0, sticky="ew")
             row += 1
             block = tk.Frame(parent, bg=self.colors["bg"])
             block.grid(row=row, column=0, sticky="ew", pady=(0, 18))
@@ -68,7 +68,7 @@ class AllMixin:
         self._label(bar, f"已选择 {len(self.selected_task_ids)} 项", 9, "#A04868", True, bg=self.colors["soft"]).pack(side="left", padx=12, pady=9)
         for text, callback in (("清除", lambda: (self.selected_task_ids.clear(), self.render())), ("删除", self.batch_delete), ("设置日期", self.batch_set_date), ("完成", self.batch_complete)):
             self._button(bar, text, callback, "ghost").pack(side="right", padx=(0, 4), pady=4)
-        more = tk.Menubutton(bar, text="更多操作 ▾", relief="flat", bd=0, bg=self.colors["surface"], fg=self.colors["text_soft"], activebackground=self.colors["accent"], font=("Microsoft YaHei UI", 9), cursor="hand2", padx=10, pady=7)
+        more = tk.Menubutton(bar, text="更多操作 ▾", relief="flat", bd=0, bg=self.colors["surface"], fg=self.colors["text_soft"], activebackground=self.colors["accent"], font=self.font("meta"), cursor="hand2", padx=10, pady=7)
         menu = tk.Menu(more, tearoff=0, bg=self.colors["surface"], fg=self.colors["text"], activebackground=self.colors["soft"], activeforeground=self.colors["text"], bd=0)
         menu.add_command(label="分类：工作", command=lambda: self.batch_set("category", "work"))
         menu.add_command(label="分类：生活", command=lambda: self.batch_set("category", "life"))

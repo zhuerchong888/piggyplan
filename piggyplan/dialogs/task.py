@@ -53,10 +53,10 @@ class TaskDialogMixin:
         goal_var = tk.StringVar(value=goal_display)
         tags_var = tk.StringVar(value="、".join(task.get("tags", [])) if task else "、".join(template.get("tags", [])))
         self._form_label(form, "要做什么？", row=0)
-        title_entry = ttk.Entry(form, textvariable=title_var, font=("Microsoft YaHei UI", 12))
+        title_entry = ttk.Entry(form, textvariable=title_var, font=self.font("body"))
         title_entry.grid(row=1, column=0, sticky="ew", pady=(0, 14), ipady=3)
         self._form_label(form, "备注详情（可选）", row=2)
-        note = tk.Text(form, height=4, wrap="word", bg=self.colors["surface_soft"], fg=self.colors["text"], relief="flat", bd=0, highlightbackground=self.colors["surface_soft"], highlightcolor=self.colors["strong"], highlightthickness=1, font=("Microsoft YaHei UI", 9))
+        note = tk.Text(form, height=4, wrap="word", bg=self.colors["surface_soft"], fg=self.colors["text"], relief="flat", bd=0, highlightbackground=self.colors["surface_soft"], highlightcolor=self.colors["strong"], highlightthickness=1, font=self.font("meta"))
         note.grid(row=3, column=0, sticky="ew", pady=(0, 13))
         note.insert("1.0", note_default)
         properties = tk.Frame(form, bg=self.colors["surface"])
@@ -86,17 +86,17 @@ class TaskDialogMixin:
             for step in task["subtasks"][:6]:
                 var = tk.BooleanVar(value=bool(step["completed"]))
                 step_completion[step["id"]] = var
-                tk.Checkbutton(checklist, text=step["title"], variable=var, command=lambda sid=step["id"], current=var: self.db.update_subtask(sid, completed=current.get()), anchor="w", bg=self.colors["surface"], fg=self.colors["text"], activebackground=self.colors["surface"], selectcolor=self.colors["surface"], highlightthickness=0, font=("Microsoft YaHei UI", 9)).pack(fill="x", padx=7, pady=1)
+                tk.Checkbutton(checklist, text=step["title"], variable=var, command=lambda sid=step["id"], current=var: self.db.update_subtask(sid, completed=current.get()), anchor="w", bg=self.colors["surface"], fg=self.colors["text"], activebackground=self.colors["surface"], selectcolor=self.colors["surface"], highlightthickness=0, font=self.font("meta")).pack(fill="x", padx=7, pady=1)
             if len(task["subtasks"]) > 6:
                 self._label(checklist, f"其余 {len(task['subtasks']) - 6} 项可在下方文本中编辑。", 8, self.colors["text_faint"], False, bg=self.colors["surface"]).pack(anchor="w", padx=9, pady=(3, 7))
-        steps = tk.Text(form, height=5, wrap="word", bg=self.colors["surface_soft"], fg=self.colors["text"], relief="flat", bd=0, highlightbackground=self.colors["surface_soft"], highlightcolor=self.colors["strong"], highlightthickness=1, font=("Microsoft YaHei UI", 9))
+        steps = tk.Text(form, height=5, wrap="word", bg=self.colors["surface_soft"], fg=self.colors["text"], relief="flat", bd=0, highlightbackground=self.colors["surface_soft"], highlightcolor=self.colors["strong"], highlightthickness=1, font=self.font("meta"))
         steps.grid(row=14, column=0, sticky="ew", pady=(4, 0))
         if task:
             steps.insert("1.0", "\n".join(step["title"] for step in task.get("subtasks", [])))
         elif template.get("subtasks"):
             steps.insert("1.0", "\n".join(template["subtasks"]))
         footer = dialog.footer_actions
-        error = tk.Label(footer, text="", bg=footer.cget("bg"), fg=self.colors["high_ink"], font=("Microsoft YaHei UI", 9))
+        error = tk.Label(footer, text="", bg=footer.cget("bg"), fg=self.colors["high_ink"], font=self.font("meta"))
         error.pack(side="left", padx=2)
         PillButton(footer, app=self, text="取消", command=dialog.destroy, kind="ghost").pack(side="right", padx=(0, 10))
 

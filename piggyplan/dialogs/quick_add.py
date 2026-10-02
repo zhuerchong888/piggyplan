@@ -25,7 +25,7 @@ class QuickAddMixin:
         self._label(container, "+  快速添加待办", 15, self.colors["text"], True).grid(row=0, column=0, sticky="w", padx=2, pady=(0, 2))
         self._label(container, "只记录一个想法也可以，默认不会计入今天的计划。", 9, self.colors["text_soft"], False).grid(row=1, column=0, sticky="w", padx=2, pady=(0, 14))
         title_var = tk.StringVar()
-        title_entry = ttk.Entry(container, textvariable=title_var, font=("Microsoft YaHei UI", 12))
+        title_entry = ttk.Entry(container, textvariable=title_var, font=self.font("body"))
         title_entry.grid(row=2, column=0, sticky="ew", padx=2, pady=(0, 14), ipady=5)
         options = tk.Frame(container, bg=self.colors["surface"])
         options.grid(row=3, column=0, sticky="ew", padx=2)

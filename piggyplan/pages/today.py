@@ -21,11 +21,11 @@ class TodayMixin:
         if overdue:
             notice = tk.Frame(parent, bg="#FFF0F1", highlightthickness=0)
             notice.grid(row=1, column=0, sticky="ew", pady=(0, 18))
-            self._label(notice, f"🐷  有 {len(overdue)} 项逾期，原计划日期会保留。先处理最重要的一件。", 9, self.colors["high"], True, bg="#FFF0EE").pack(side="left", padx=13, pady=11)
+            self._label(notice, f"🐷  有 {len(overdue)} 项逾期，原计划日期会保留。先处理最重要的一件。", 9, self.colors["high_ink"], True, bg="#FFF0EE").pack(side="left", padx=13, pady=11)
             self._button(notice, "查看逾期", lambda: self.canvas.yview_moveto(0.15), "link").pack(side="right", padx=10)
         row = 2
         if overdue:
-            self.section_title(parent, "逾期", len(overdue), color=self.colors["high"]).grid(row=row, column=0, sticky="ew")
+            self.section_title(parent, "逾期", len(overdue), color=self.colors["high_ink"]).grid(row=row, column=0, sticky="ew")
             row += 1
             block = tk.Frame(parent, bg=self.colors["bg"])
             block.grid(row=row, column=0, sticky="ew", pady=(0, 20))

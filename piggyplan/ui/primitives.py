@@ -10,7 +10,7 @@ from typing import Any
 from ..tokens import RADIUS, SPACE
 from ..util import date_text, offset_date, today_key
 from .mascot import PigMark
-from .widgets import Card, Chip, PillButton, SnoutIcon
+from .widgets import Card, CheckCircle, Chip, HeartIcon, PillButton, SnoutIcon
 
 
 class PrimitivesMixin:
@@ -61,30 +61,33 @@ class PrimitivesMixin:
 
     def task_row(self, parent: tk.Misc, task: dict[str, Any], show_date: bool = True, compact: bool = False, selectable: bool = False) -> tk.Frame:
         colors = self.colors
-        frame = tk.Frame(parent, bg=self.colors["surface"], highlightthickness=0, cursor="hand2")
+        frame = Card(parent, app=self, tone="surface", hoverable=True, padding=(12, 11))
         frame.pack(fill="x", pady=(0, 9))
-        stripe = tk.Frame(frame, width=3, bg=self.colors["high"] if task["priority"] == "high" else colors["accent"])
-        stripe.pack(side="left", fill="y")
-        body = tk.Frame(frame, bg=self.colors["surface"])
-        body.pack(fill="both", expand=True, padx=12, pady=11)
+        frame.body.configure(cursor="hand2")
+        body = frame.body
         if selectable:
             chosen = tk.BooleanVar(value=task["id"] in self.selected_task_ids)
             selector = tk.Checkbutton(body, variable=chosen, command=lambda tid=task["id"], var=chosen: self._toggle_selection(tid, var.get()), bg=self.colors["surface"], activebackground=self.colors["surface"], selectcolor=self.colors["surface"], bd=0, highlightthickness=0)
             selector.pack(side="left", padx=(0, 6))
-        check = tk.Button(body, text="✓" if task["status"] == "completed" else "·", command=lambda tid=task["id"]: self.toggle_task(tid), width=2, height=1, relief="flat", bd=0, font=("Segoe UI", 10, "bold"), bg=colors["strong"] if task["status"] == "completed" else colors["soft"], fg="white" if task["status"] == "completed" else colors["accent"], activebackground=colors["strong"], activeforeground="white", cursor="hand2", highlightthickness=0)
+        check = CheckCircle(body, app=self, completed=task["status"] == "completed", command=lambda tid=task["id"]: self.toggle_task(tid))
         check.pack(side="left", padx=(0, 11))
         middle = tk.Frame(body, bg=self.colors["surface"])
         middle.pack(side="left", fill="x", expand=True)
-        title = self._label(middle, task["title"], 10, self.colors["text_soft"] if task["status"] == "completed" else self.colors["text"], True, bg=self.colors["surface"], anchor="w")
-        title.pack(fill="x")
+        title_row = tk.Frame(middle, bg=self.colors["surface"])
+        title_row.pack(fill="x")
+        if task["priority"] == "high" and task["status"] != "completed":
+            HeartIcon(title_row, app=self, size=12).pack(side="left", padx=(0, 5))
+        title = self._label(title_row, task["title"], 10, self.colors["text_soft"] if task["status"] == "completed" else self.colors["text"], True, bg=self.colors["surface"], anchor="w")
+        title.pack(side="left", fill="x", expand=True)
         if task.get("note") and not compact:
-            self._label(middle, task["note"], 8, self.colors["text_faint"], False, bg=self.colors["surface"], anchor="w").pack(fill="x", pady=(3, 0))
+            self._label(middle, task["note"], 8, self.colors["text_soft"], False, bg=self.colors["surface"], anchor="w").pack(fill="x", pady=(3, 0))
         meta = tk.Frame(middle, bg=self.colors["surface"])
         meta.pack(fill="x", pady=(6, 0))
         if show_date:
             planned = task.get("planned_date")
-            date_color = self.colors["high"] if planned and planned < today_key() and task["status"] == "todo" else colors["strong"] if planned == today_key() else self.colors["warning"] if planned == offset_date(1) else self.colors["text_faint"]
-            self._label(meta, f"◷  {date_text(planned)}", 8, date_color, planned and planned < today_key() and task["status"] == "todo", bg=self.colors["surface"]).pack(side="left", padx=(0, 11))
+            overdue = planned and planned < today_key() and task["status"] == "todo"
+            date_color = colors["high_ink"] if overdue else colors["strong"] if planned == today_key() else colors["warning_ink"] if planned == offset_date(1) else colors["text_faint"]
+            self._label(meta, f"◷  {date_text(planned)}", 8, date_color, bool(overdue), bg=self.colors["surface"]).pack(side="left", padx=(0, 11))
         self.badge(meta, "生活" if task["category"] == "life" else "工作", "#FDF2E4" if task["category"] == "life" else colors["soft"], "#A06830" if task["category"] == "life" else "#A04868").pack(side="left", padx=(0, 6))
         for tag in task.get("tags", [])[:2 if not compact else 1]:
             self.badge(meta, f"#{tag}", "#F5EEF0", "#8B6B73").pack(side="left", padx=(0, 5))
@@ -99,6 +102,7 @@ class PrimitivesMixin:
         self._button(actions, "⋮", lambda tid=task["id"], widget=frame: self.open_context_menu(tid, widget), "ghost").pack(side="left")
         self._bind_right_click(frame, task["id"])
         frame._task_id = task["id"]  # type: ignore[attr-defined]
+        frame.set_size()
         for child in (frame, body, middle, title, meta):
             child.bind("<Double-Button-1>", lambda _event, tid=task["id"]: self.open_task_dialog(tid))
             child.bind("<ButtonPress-1>", lambda event, tid=task["id"], row=frame: self._drag_start(event, tid, row), add="+")
@@ -173,6 +177,7 @@ class PrimitivesMixin:
             box.pack(fill="x", pady=4)
         body_bg = box.body.cget("bg")
         PigMark(box.body, app=self, variant="mascot").pack(pady=(18, 6))
+        box.set_size()
         self._label(box.body, title, 10, self.colors["text"], True, bg=body_bg).pack()
         self._label(box.body, description, 8, self.colors["text_soft"], False, bg=body_bg).pack(pady=(4, 0))
         if command:

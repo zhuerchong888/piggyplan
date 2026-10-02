@@ -50,6 +50,6 @@ class RailMixin:
         for index, item in enumerate(stats["days"]):
             col = tk.Frame(chart, bg=self.colors["surface"])
             col.place(relx=index / 7, rely=0, relwidth=1 / 7, relheight=1)
-            bar = tk.Frame(col, bg=colors["strong"] if item["date"] == today_key() else colors["accent"], width=16)
+            bar = tk.Frame(col, bg=colors["accentDeep"] if item["date"] == today_key() else colors["accent"], width=16)
             bar.place(relx=0.5, rely=0.78, anchor="s", relheight=max(0.05, item["actual"] / max_actual * 0.65), relwidth=0.38)
             self._label(col, "今" if item["date"] == today_key() else item["date"][5:].replace("-", "/"), 7, self.colors["text_faint"], False, bg=self.colors["surface"]).place(relx=0.5, rely=0.9, anchor="n")

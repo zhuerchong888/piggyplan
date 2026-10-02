@@ -27,10 +27,10 @@ class GoalDialogMixin:
         priority_var = tk.StringVar(value="高" if goal and goal["priority"] == "high" else "普通")
         date_var = tk.StringVar(value=goal["planned_finish_date"] if goal and goal.get("planned_finish_date") else "")
         self._form_label(form, "目标是什么？", row=0)
-        title_entry = ttk.Entry(form, textvariable=title_var, font=("Microsoft YaHei UI", 12))
+        title_entry = ttk.Entry(form, textvariable=title_var, font=self.font("body"))
         title_entry.grid(row=1, column=0, sticky="ew", pady=(0, 15), ipady=3)
         self._form_label(form, "目标说明（可选）", row=2)
-        note = tk.Text(form, height=5, wrap="word", bg=self.colors["surface_soft"], fg=self.colors["text"], relief="flat", bd=0, highlightbackground=self.colors["surface_soft"], highlightcolor=self.colors["strong"], highlightthickness=1, font=("Microsoft YaHei UI", 9))
+        note = tk.Text(form, height=5, wrap="word", bg=self.colors["surface_soft"], fg=self.colors["text"], relief="flat", bd=0, highlightbackground=self.colors["surface_soft"], highlightcolor=self.colors["strong"], highlightthickness=1, font=self.font("meta"))
         note.grid(row=3, column=0, sticky="ew", pady=(4, 14))
         if goal:
             note.insert("1.0", goal.get("note", ""))
@@ -47,7 +47,7 @@ class GoalDialogMixin:
         date_entry.grid(row=6, column=0, sticky="ew", pady=(4, 1))
         self._label(form, "只做方向提醒，不会产生强提醒。格式 YYYY-MM-DD。", 8, self.colors["text_faint"], False, bg=self.colors["surface"]).grid(row=7, column=0, sticky="w")
         footer = dialog.footer_actions
-        error = tk.Label(footer, text="", bg=footer.cget("bg"), fg=self.colors["high_ink"], font=("Microsoft YaHei UI", 9))
+        error = tk.Label(footer, text="", bg=footer.cget("bg"), fg=self.colors["high_ink"], font=self.font("meta"))
         error.pack(side="left", padx=2)
         PillButton(footer, app=self, text="取消", command=dialog.destroy, kind="ghost").pack(side="right", padx=(0, 10))
 

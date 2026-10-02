@@ -61,12 +61,16 @@ class Card(tk.Canvas):
         self.redraw(self._fill(on))
 
     def redraw(self, fill: str | None = None) -> None:
-        for item in self.find_all():
-            if item != self._window:
-                self.delete(item)
         width, height = self.winfo_width(), self.winfo_height()
         if width <= 4 or height <= 4:
             return
+        paint = (width, height, fill or self._fill(), self.stroke)
+        if paint == getattr(self, "_last_paint", None):
+            return  # <Configure> 链会触发多次 redraw；尺寸与颜色没变就别重建多边形
+        self._last_paint = paint
+        for item in self.find_all():
+            if item != self._window:
+                self.delete(item)
         soft_round_rect(self, 2, 2, width - 2, height - 2, self.radius,
                         fill or self._fill(), backdrop=self.backdrop,
                         stroke=self.app.colors["shell"] if self.stroke else None)
@@ -75,14 +79,27 @@ class Card(tk.Canvas):
             self.tag_lower(item_id)
         self.tag_raise(self._window)
 
+    def set_size(self) -> None:
+        """构建完成后同步按 body 需求高度定画布，消灭布局级联。
+
+        宽度交给几何管理器（fill="x"）；高度用 winfo_reqheight 立即可得，
+        不需要等 <Configure> 往返——200 张卡逐张"试探-回调-再试探"就是
+        性能预算爆炸的根源。
+        """
+        wanted = self.body.winfo_reqheight() + 2 * self.padding_y
+        if int(self["height"]) != wanted:
+            self.configure(height=wanted)
+        self._last_paint = None
+        self.redraw()
+
     def _follow_body(self, event) -> None:
         if self.fixed:
             self.redraw()
             return
-        wanted_width = event.width + 2 * self.padding_x
         wanted_height = event.height + 2 * self.padding_y
-        if (int(self["width"]), int(self["height"])) != (wanted_width, wanted_height):
-            self.configure(width=wanted_width, height=wanted_height)
+        if int(self["height"]) != wanted_height:
+            self.configure(height=wanted_height)
+            self._last_paint = None
             self.redraw()
 
     def _follow_canvas(self, event) -> None:
@@ -124,7 +141,7 @@ class PillButton(tk.Canvas):
         self.configure(takefocus=True)
         self.bind("<Return>", lambda _e: self.invoke())
         self.bind("<space>", lambda _e: self.invoke())
-        self.after_idle(self._fit_to_text)
+        self._fit_to_text()
 
     def _font(self):
         return self.app.font("micro" if self.size == "sm" else "body")
@@ -151,12 +168,16 @@ class PillButton(tk.Canvas):
         return (colors["bg"] if not hovered else colors["surface_soft"]), colors["ink_soft"]
 
     def redraw(self) -> None:
-        for item in self.find_all():
-            if item != self._text:
-                self.delete(item)
         width, height = self.winfo_width(), self.winfo_height()
         if width <= 4 or height <= 4:
             return
+        state = (width, height, self._hover, self._pressed, self.itemcget(self._text, "text"))
+        if state == getattr(self, "_last_paint", None):
+            return
+        self._last_paint = state
+        for item in self.find_all():
+            if item != self._text:
+                self.delete(item)
         fill, foreground = self._palette(self._hover or self._pressed)
         soft_round_rect(self, 2, 2, width - 2, height - 2, min(RADIUS["pill"], height // 2),
                         fill, backdrop=self.backdrop)
@@ -190,6 +211,7 @@ class PillButton(tk.Canvas):
         self._fit_to_text()
 
 
+
 class Chip(tk.Canvas):
     """圆角小徽章：分类 / 优先级 / 标签的统一形态。"""
 
@@ -204,22 +226,21 @@ class Chip(tk.Canvas):
                          height=22, width=1)
         self._id_text = self.create_text(0, 0, text=text, fill=self._fg,
                                          font=app.font("micro"))
-        self.bind("<Configure>", lambda _e: self.redraw())
-        self.after_idle(self._fit)
-
-    def _fit(self) -> None:
-        text_w = int(self.tk.call("font", "measure", self.app.font("micro"),
-                                  self.itemcget(self._id_text, "text")))
+        text_w = int(self.tk.call("font", "measure", app.font("micro"), text))
         self.configure(width=text_w + 14)
-        self.redraw()
+        self.bind("<Configure>", lambda _e: self.redraw())
 
     def redraw(self) -> None:
-        for item in self.find_all():
-            if item != self._id_text:
-                self.delete(item)
         width, height = self.winfo_width(), self.winfo_height()
         if width <= 4 or height <= 4:
             return
+        state = (width, height, self._fill)
+        if state == getattr(self, "_last_paint", None):
+            return
+        self._last_paint = state
+        for item in self.find_all():
+            if item != self._id_text:
+                self.delete(item)
         soft_round_rect(self, 1, 1, width - 1, height - 1, RADIUS["chip"],
                         self._fill, backdrop=self.backdrop)
         self.coords(self._id_text, width / 2, height / 2)
@@ -246,3 +267,108 @@ class SnoutIcon(tk.Canvas):
                          highlightthickness=0, bd=0)
         snout(self, (size + 4) // 2, height // 2, size,
               fill=app.colors["accentDeep"], hole=app.colors["surface"])
+
+
+class CheckCircle(tk.Canvas):
+    """自绘圆形勾选：完成 = ink 圆 + 白勾；未完成 = soft 圆点。"""
+
+    def __init__(self, parent, *, app, completed: bool = False, command=None, size: int = 22) -> None:
+        self.app = app
+        self.completed = completed
+        self.command = command
+        self.size = size
+        self.backdrop = parent.cget("bg") or app.colors["surface"]
+        super().__init__(parent, bg=self.backdrop, width=size, height=size,
+                         highlightthickness=0, bd=0, cursor="hand2")
+        self.bind("<Button-1>", self._click)
+        self._draw()
+
+    def _click(self, _event) -> None:
+        if self.command:
+            self.command()
+
+    def set_completed(self, completed: bool) -> None:
+        self.completed = completed
+        self._draw()
+
+    def _draw(self) -> None:
+        self.delete("all")
+        size = self.size
+        colors = self.app.colors
+        radius = size // 2 - 1
+        if self.completed:
+            soft_round_rect(self, 1, 1, size - 1, size - 1, radius, colors["ink"], backdrop=self.backdrop)
+            self.create_line(size * 0.28, size * 0.53, size * 0.44, size * 0.69, size * 0.73, size * 0.32,
+                             fill="#FFFFFF", width=2, capstyle="round", joinstyle="round", smooth=True)
+        else:
+            soft_round_rect(self, 1, 1, size - 1, size - 1, radius, colors["soft"], backdrop=self.backdrop)
+
+
+class CheckCircle(tk.Canvas):
+    """自绘圆形勾选：完成 = ink 圆 + 白勾；未完成 = soft 圆点。"""
+
+    def __init__(self, parent, *, app, completed: bool = False, command=None, size: int = 22) -> None:
+        self.app = app
+        self.completed = completed
+        self.command = command
+        self.size = size
+        self.backdrop = parent.cget("bg") or app.colors["surface"]
+        super().__init__(parent, bg=self.backdrop, width=size, height=size,
+                         highlightthickness=0, bd=0, cursor="hand2")
+        self.bind("<Button-1>", self._click)
+        self._draw()
+
+    def _click(self, _event) -> None:
+        if self.command:
+            self.command()
+
+    def set_completed(self, completed: bool) -> None:
+        self.completed = completed
+        self._draw()
+
+    def _draw(self) -> None:
+        self.delete("all")
+        size = self.size
+        colors = self.app.colors
+        radius = size // 2 - 1
+        if self.completed:
+            soft_round_rect(self, 1, 1, size - 1, size - 1, radius, colors["ink"], backdrop=self.backdrop)
+            self.create_line(size * 0.28, size * 0.53, size * 0.44, size * 0.69, size * 0.73, size * 0.32,
+                             fill="#FFFFFF", width=2, capstyle="round", joinstyle="round", smooth=True)
+        else:
+            soft_round_rect(self, 1, 1, size - 1, size - 1, radius, colors["soft"], backdrop=self.backdrop)
+
+
+class CheckCircle(tk.Canvas):
+    """自绘圆形勾选：完成 = ink 圆 + 白勾；未完成 = soft 圆点。"""
+
+    def __init__(self, parent, *, app, completed: bool = False, command=None, size: int = 22) -> None:
+        self.app = app
+        self.completed = completed
+        self.command = command
+        self.size = size
+        self.backdrop = parent.cget("bg") or app.colors["surface"]
+        super().__init__(parent, bg=self.backdrop, width=size, height=size,
+                         highlightthickness=0, bd=0, cursor="hand2")
+        self.bind("<Button-1>", self._click)
+        self._draw()
+
+    def _click(self, _event) -> None:
+        if self.command:
+            self.command()
+
+    def set_completed(self, completed: bool) -> None:
+        self.completed = completed
+        self._draw()
+
+    def _draw(self) -> None:
+        self.delete("all")
+        size = self.size
+        colors = self.app.colors
+        radius = size // 2 - 1
+        if self.completed:
+            soft_round_rect(self, 1, 1, size - 1, size - 1, radius, colors["ink"], backdrop=self.backdrop)
+            self.create_line(size * 0.28, size * 0.53, size * 0.44, size * 0.69, size * 0.73, size * 0.32,
+                             fill="#FFFFFF", width=2, capstyle="round", joinstyle="round", smooth=True)
+        else:
+            soft_round_rect(self, 1, 1, size - 1, size - 1, radius, colors["soft"], backdrop=self.backdrop)

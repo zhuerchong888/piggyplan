@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import tkinter as tk
 from typing import Any
+from ..ui.widgets import Card
 from ..util import date_text
 
 
@@ -40,11 +41,9 @@ class GoalsMixin:
 
     def goal_card(self, parent: tk.Misc, goal: dict[str, Any]) -> tk.Frame:
         colors = self.colors
-        outer = tk.Frame(parent, bg=self.colors["surface"], highlightthickness=0, cursor="hand2")
-        stripe = tk.Frame(outer, bg=self.colors["high"] if goal["priority"] == "high" else colors["accent"], height=4)
-        stripe.pack(fill="x")
-        body = tk.Frame(outer, bg=self.colors["surface"])
-        body.pack(fill="both", expand=True, padx=15, pady=13)
+        outer = Card(parent, app=self, tone="surface", hoverable=True, padding=(15, 13))
+        outer.body.configure(cursor="hand2")
+        body = outer.body
         top = tk.Frame(body, bg=self.colors["surface"])
         top.pack(fill="x")
         title = self._label(top, goal["title"], 11, self.colors["text"], True, bg=self.colors["surface"], anchor="w")
@@ -54,7 +53,7 @@ class GoalsMixin:
         badges.pack(fill="x", pady=(8, 0))
         self.badge(badges, "生活" if goal["category"] == "life" else "工作", "#FDF2E4" if goal["category"] == "life" else colors["soft"], "#A06830" if goal["category"] == "life" else "#A04868").pack(side="left", padx=(0, 6))
         if goal["priority"] == "high":
-            self.badge(badges, "高优先级", "#FFF0F0", "#C95D61").pack(side="left")
+            self.badge(badges, "高优先级", "#FFF0F0", colors["high_ink"]).pack(side="left")
         self._label(body, goal["note"] or "还没有目标说明，把它拆成下一步就好。", 8, self.colors["text_soft"], False, bg=self.colors["surface"], anchor="w", wraplength=330, justify="left").pack(fill="x", pady=(13, 14))
         progress_row = tk.Frame(body, bg=self.colors["surface"])
         progress_row.pack(fill="x")
@@ -70,6 +69,7 @@ class GoalsMixin:
         edit = self._button(footer, "编辑", lambda gid=goal["id"]: self.open_goal_dialog(gid), "ghost")
         edit.pack(side="right")
         self._bind_click_recursive(outer, lambda gid=goal["id"]: self.open_goal_detail(gid), skip=(edit,))
+        outer.set_size()
         return outer
 
     def _bind_click_recursive(self, widget: tk.Misc, callback, skip: tuple[tk.Misc, ...] = ()) -> None:
@@ -95,7 +95,7 @@ class GoalsMixin:
         badges = tk.Frame(info, bg=self.colors["surface"])
         badges.pack(anchor="w", pady=(8, 0))
         self.badge(badges, "生活" if goal["category"] == "life" else "工作", "#FDF2E4" if goal["category"] == "life" else self.colors["soft"], "#A06830" if goal["category"] == "life" else "#A04868").pack(side="left", padx=(0, 6))
-        if goal["priority"] == "high": self.badge(badges, "高优先级", "#FFF0F0", "#C95D61").pack(side="left", padx=(0, 6))
+        if goal["priority"] == "high": self.badge(badges, "高优先级", "#FFF0F0", colors["high_ink"]).pack(side="left", padx=(0, 6))
         self.badge(badges, "已达成" if goal["status"] == "achieved" else "进行中", "#E8F5EE" if goal["status"] == "achieved" else self.colors["soft"], "#4A9B72" if goal["status"] == "achieved" else "#A04868").pack(side="left")
         self._label(info, goal["note"] or "这个目标还没有说明。", 9, self.colors["text_soft"], False, bg=self.colors["surface"], wraplength=610, justify="left").pack(anchor="w", pady=(10, 10))
         self._label(info, f"◷  {('计划完成 ' + date_text(goal['planned_finish_date'])) if goal.get('planned_finish_date') else '暂未设置计划完成日期'}     ✓  {goal['completed']} / {goal['total']} 个待办", 8, self.colors["text_faint"], False, bg=self.colors["surface"]).pack(anchor="w")

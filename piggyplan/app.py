@@ -137,9 +137,9 @@ class PiggyPlanApp(
         except tk.TclError:
             pass
         colors = self.colors
-        style.configure("TEntry", padding=(11, 9), fieldbackground=colors["soft"], background=colors["soft"], foreground=colors["text"], bordercolor=colors["soft"], lightcolor=colors["soft"], darkcolor=colors["soft"], font=("Microsoft YaHei UI", 10))
+        style.configure("TEntry", padding=(11, 9), fieldbackground=colors["soft"], background=colors["soft"], foreground=colors["text"], bordercolor=colors["soft"], lightcolor=colors["soft"], darkcolor=colors["soft"], font=self.font("body"))
         style.map("TEntry", bordercolor=[("focus", colors["strong"])], lightcolor=[("focus", colors["strong"])], darkcolor=[("focus", colors["strong"])])
-        style.configure("TCombobox", padding=(10, 8), fieldbackground=colors["soft"], background=colors["soft"], foreground=colors["text"], bordercolor=colors["soft"], lightcolor=colors["soft"], darkcolor=colors["soft"], arrowcolor=colors["strong"], font=("Microsoft YaHei UI", 10))
+        style.configure("TCombobox", padding=(10, 8), fieldbackground=colors["soft"], background=colors["soft"], foreground=colors["text"], bordercolor=colors["soft"], lightcolor=colors["soft"], darkcolor=colors["soft"], arrowcolor=colors["strong"], font=self.font("body"))
         style.map("TCombobox", bordercolor=[("focus", colors["strong"])], lightcolor=[("focus", colors["strong"])], darkcolor=[("focus", colors["strong"])])
         style.configure("Vertical.TScrollbar", troughcolor=colors["bg"], background=colors["line"], arrowcolor=colors["text_soft"], bordercolor=colors["bg"], lightcolor=colors["bg"], darkcolor=colors["bg"])
 
@@ -185,7 +185,7 @@ class PiggyPlanApp(
         self.header.grid_columnconfigure(3, weight=0)
         self.header_title = tk.Label(self.header, text="今天", bg=self.colors["bg"], fg=self.colors["text"], font=self.font("display"))
         self.header_title.grid(row=0, column=0, sticky="w", padx=(34, 10), pady=(22, 0))
-        self.header_caption = tk.Label(self.header, text=today_text(), bg=self.colors["bg"], fg=self.colors["text_soft"], font=("Microsoft YaHei UI", 10))
+        self.header_caption = tk.Label(self.header, text=today_text(), bg=self.colors["bg"], fg=self.colors["text_soft"], font=self.font("body"))
         self.header_caption.grid(row=1, column=0, sticky="w", padx=(34, 10), pady=(2, 18))
         search_wrap = tk.Frame(self.header, bg=self.colors["bg"])
         search_wrap.grid(row=0, column=2, rowspan=2, sticky="ew", padx=26, pady=23)
@@ -204,7 +204,7 @@ class PiggyPlanApp(
         PigMark(brand, app=self, variant="logo").pack(side="left")
         brand_text = tk.Frame(brand, bg=self.colors["soft_surface"])
         brand_text.pack(side="left", padx=10)
-        tk.Label(brand_text, text="日常", bg=self.colors["soft_surface"], fg=self.colors["text"], font=("Microsoft YaHei UI", 17, "bold")).pack(anchor="w")
+        tk.Label(brand_text, text="日常", bg=self.colors["soft_surface"], fg=self.colors["text"], font=self.font("title")).pack(anchor="w")
         tk.Label(brand_text, text="PIGGYPLAN · LOCAL FIRST", bg=self.colors["soft_surface"], fg=self.colors["ink_soft"], font=self.font("micro")).pack(anchor="w", pady=(1, 0))
         self.sidebar_new = PillButton(self.sidebar, app=self, text="+  新建待办", command=self.open_new_task, kind="primary", size="lg")
         self.sidebar_new.grid(row=1, column=0, sticky="ew", padx=16, pady=(0, 20))
@@ -235,10 +235,10 @@ class PiggyPlanApp(
         frame.grid_columnconfigure(1, weight=1)
         indicator = tk.Canvas(frame, width=4, height=20, bg=colors["soft_surface"], highlightthickness=0, bd=0)
         indicator.grid(row=0, column=0, padx=(2, 9))
-        button = tk.Button(frame, text=text, command=lambda v=view: self.navigate(v), anchor="w", relief="flat", bd=0, padx=14, pady=10, font=("Microsoft YaHei UI", 10), cursor="hand2", bg=colors["soft_surface"], fg=colors["text_soft"], activebackground=colors["soft_surface"])
+        button = tk.Button(frame, text=text, command=lambda v=view: self.navigate(v), anchor="w", relief="flat", bd=0, padx=14, pady=10, font=self.font("body"), cursor="hand2", bg=colors["soft_surface"], fg=colors["text_soft"], activebackground=colors["soft_surface"])
         button.grid(row=0, column=1, sticky="ew")
         if show_count:
-            count = tk.Label(frame, text="", width=4, font=("Microsoft YaHei UI", 8, "bold"), padx=4, pady=2, bg=colors["soft_surface"])
+            count = tk.Label(frame, text="", width=4, font=self.font("micro"), padx=4, pady=2, bg=colors["soft_surface"])
             count.grid(row=0, column=2, padx=(0, 8))
             button._count_label = count  # type: ignore[attr-defined]
         button._indicator = indicator  # type: ignore[attr-defined]
@@ -260,7 +260,12 @@ class PiggyPlanApp(
         return button
 
     def _label(self, parent: tk.Misc, text: str, size: int = 10, color: str | None = None, bold: bool = False, **kwargs) -> tk.Label:
-        return tk.Label(parent, text=text, bg=kwargs.pop("bg", self.colors["bg"]), fg=color or self.colors["text"], font=("Microsoft YaHei UI", size, "bold" if bold else "normal"), **kwargs)
+        if size <= 9:
+            # CJK 小字号加粗会糊；层级交给颜色承担（micro 角色的 YaHei 例外仅限组件层）。
+            bold = False
+            size = max(size, 8)
+        family = self.font("meta")[0]
+        return tk.Label(parent, text=text, bg=kwargs.pop("bg", self.colors["bg"]), fg=color or self.colors["text"], font=(family, size, "bold" if bold else "normal"), **kwargs)
 
     def _bind_shortcuts(self) -> None:
         self.bind_all("<Control-n>", lambda _event: self.open_new_task())
@@ -302,7 +307,7 @@ class PiggyPlanApp(
             self.tray_menu.destroy()
         remaining = len(self.db.list_tasks())
         startup_label = "开机自启  ✓" if self.settings.get("startup_enabled") == "1" else "开机自启"
-        menu = tk.Menu(self, tearoff=0, bg=self.colors["surface"], fg=self.colors["text"], activebackground=self.colors["soft"], activeforeground=self.colors["text"], bd=0, relief="flat", font=("Microsoft YaHei UI", 9))
+        menu = tk.Menu(self, tearoff=0, bg=self.colors["surface"], fg=self.colors["text"], activebackground=self.colors["soft"], activeforeground=self.colors["text"], bd=0, relief="flat", font=self.font("meta"))
         menu.add_command(label="快速添加待办", command=self.open_quick_add)
         menu.add_command(label="打开主界面", command=self.show_main_window)
         menu.add_command(label=f"今天剩余 {remaining} 项", command=lambda: self.show_main_window() or self.navigate("today"))
