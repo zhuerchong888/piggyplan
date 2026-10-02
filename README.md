@@ -2,6 +2,10 @@
 
 PiggyPlan 是一款可在 Windows 本机运行的个人待办与长期目标管理软件。主程序使用原生桌面窗口和 SQLite 数据库，不需要浏览器、账号、网络连接或后台数据库服务。
 
+[项目仓库](https://github.com/zhuerchong888/piggyplan) · [下载 Windows 便携版](https://github.com/zhuerchong888/piggyplan/releases/latest)
+
+下载 ZIP 后完整解压，双击 `PiggyPlan.exe` 即可运行，无需安装 Python。
+
 ![今天页面](shots/final-wide/today.png)
 
 ![精简待办表单](shots/final-wide/dialog-task.png)
