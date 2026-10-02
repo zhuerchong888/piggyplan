@@ -21,12 +21,13 @@ class Card(tk.Canvas):
 
     def __init__(self, parent, *, app, tone: str = "surface", radius: int = 14,
                  padding: tuple[int, int] = (16, 14), stroke: bool = False,
-                 hoverable: bool = False) -> None:
+                 hoverable: bool = False, fixed: bool = False) -> None:
         self.app = app
         self.radius = radius
         self.padding_x, self.padding_y = padding
         self.tone = tone
         self.stroke = stroke
+        self.fixed = fixed  # True：几何管理器决定画布尺寸（对话框），body 不反调尺寸
         self.backdrop = parent.cget("bg") or app.colors["bg"]
         super().__init__(parent, bg=self.backdrop, highlightthickness=0, bd=0)
         self.body = tk.Frame(self, bg=self._fill())
@@ -63,14 +64,21 @@ class Card(tk.Canvas):
         for item in self.find_all():
             if item != self._window:
                 self.delete(item)
-        width, height = int(self["width"]), int(self["height"])
+        width, height = self.winfo_width(), self.winfo_height()
+        if width <= 4 or height <= 4:
+            return
         soft_round_rect(self, 2, 2, width - 2, height - 2, self.radius,
                         fill or self._fill(), backdrop=self.backdrop,
                         stroke=self.app.colors["shell"] if self.stroke else None)
-        self.tag_lower(*[i for i in self.find_all() if i != self._window])
+        # Tcl 的 lower 一次只接受一个 item；逐个下移并倒序迭代，保持创建时的层级。
+        for item_id in reversed([i for i in self.find_all() if i != self._window]):
+            self.tag_lower(item_id)
         self.tag_raise(self._window)
 
     def _follow_body(self, event) -> None:
+        if self.fixed:
+            self.redraw()
+            return
         wanted_width = event.width + 2 * self.padding_x
         wanted_height = event.height + 2 * self.padding_y
         if (int(self["width"]), int(self["height"])) != (wanted_width, wanted_height):
@@ -79,8 +87,15 @@ class Card(tk.Canvas):
 
     def _follow_canvas(self, event) -> None:
         # 被 grid(sticky="ew") 拉伸时，让 body 跟随宽度，从而支持 wraplength 自适应。
-        self.after_idle(lambda: self.itemconfigure(
-            self._window, width=max(1, event.width - 2 * self.padding_x)))
+        self.after_idle(self.redraw)
+        if self.fixed:
+            # 对话框等固定几何场景：body 铺满画布内部，页脚才能钉在底边。
+            self.after_idle(lambda: self.itemconfigure(
+                self._window, width=max(1, event.width - 2 * self.padding_x),
+                height=max(1, event.height - 2 * self.padding_y)))
+        else:
+            self.after_idle(lambda: self.itemconfigure(
+                self._window, width=max(1, event.width - 2 * self.padding_x)))
 
 
 class PillButton(tk.Canvas):
@@ -125,7 +140,8 @@ class PillButton(tk.Canvas):
     def _palette(self, hovered: bool) -> tuple[str, str]:
         colors = self.app.colors
         if self.kind == "primary":
-            fill = mix(colors["accentDeep"], "#000000", 0.06 if hovered else 0.0)
+            # 按钮文字也是文字：底色用 ink 级（>=4.5:1），accentDeep 只配图形。
+            fill = mix(colors["ink"], "#000000", 0.10 if hovered else 0.0)
             return fill, "#FFFFFF"
         if self.kind == "soft":
             return (colors["soft"] if not hovered else mix(colors["soft"], colors["accent"], 0.6),
@@ -138,7 +154,9 @@ class PillButton(tk.Canvas):
         for item in self.find_all():
             if item != self._text:
                 self.delete(item)
-        width, height = int(self["width"]), int(self["height"])
+        width, height = self.winfo_width(), self.winfo_height()
+        if width <= 4 or height <= 4:
+            return
         fill, foreground = self._palette(self._hover or self._pressed)
         soft_round_rect(self, 2, 2, width - 2, height - 2, min(RADIUS["pill"], height // 2),
                         fill, backdrop=self.backdrop)
@@ -199,7 +217,9 @@ class Chip(tk.Canvas):
         for item in self.find_all():
             if item != self._id_text:
                 self.delete(item)
-        width, height = int(self["width"]), int(self["height"])
+        width, height = self.winfo_width(), self.winfo_height()
+        if width <= 4 or height <= 4:
+            return
         soft_round_rect(self, 1, 1, width - 1, height - 1, RADIUS["chip"],
                         self._fill, backdrop=self.backdrop)
         self.coords(self._id_text, width / 2, height / 2)

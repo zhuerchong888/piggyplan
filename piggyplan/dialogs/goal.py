@@ -4,25 +4,23 @@ from __future__ import annotations
 
 import tkinter as tk
 from tkinter import ttk
+from ..ui.dialog import Dialog
+from ..ui.widgets import PillButton
 from ..util import category_label, parse_date
 
 
 class GoalDialogMixin:
     def open_goal_dialog(self, goal_id: str | None = None) -> None:
         goal = self.db.get_goal(goal_id) if goal_id else None
-        dialog = tk.Toplevel(self)
-        dialog.title("编辑长期目标" if goal else "新建长期目标")
-        dialog.configure(bg=self.colors["bg"])
-        dialog.transient(self)
-        dialog.grab_set()
-        dialog.geometry("500x470")
-        dialog.columnconfigure(0, weight=1)
-        head = tk.Frame(dialog, bg=self.colors["surface"])
+        dialog = Dialog(self, "编辑长期目标" if goal else "新建长期目标", "500x470")
+        container = dialog.content
+        container.columnconfigure(0, weight=1)
+        head = tk.Frame(container, bg=self.colors["surface"])
         head.grid(row=0, column=0, sticky="ew")
         self._label(head, "编辑长期目标" if goal else "新建长期目标", 17, self.colors["text"], True, bg=self.colors["surface"]).pack(anchor="w", padx=22, pady=(19, 3))
         self._label(head, "目标进度由关联待办自动计算，不需要手动维护百分比。", 9, self.colors["text_soft"], False, bg=self.colors["surface"]).pack(anchor="w", padx=22, pady=(0, 16))
-        form = tk.Frame(dialog, bg=self.colors["bg"])
-        form.grid(row=1, column=0, sticky="nsew", padx=20, pady=17)
+        form = tk.Frame(container, bg=self.colors["surface"])
+        form.grid(row=1, column=0, sticky="nsew", padx=2, pady=17)
         form.columnconfigure(0, weight=1)
         title_var = tk.StringVar(value=goal["title"] if goal else "")
         category_var = tk.StringVar(value=category_label(goal["category"] if goal else self.settings.get("default_category", "work")))
@@ -36,7 +34,7 @@ class GoalDialogMixin:
         note.grid(row=3, column=0, sticky="ew", pady=(4, 14))
         if goal:
             note.insert("1.0", goal.get("note", ""))
-        properties = tk.Frame(form, bg=self.colors["bg"])
+        properties = tk.Frame(form, bg=self.colors["surface"])
         properties.grid(row=4, column=0, sticky="ew")
         properties.grid_columnconfigure(0, weight=1)
         properties.grid_columnconfigure(1, weight=1)
@@ -47,12 +45,11 @@ class GoalDialogMixin:
         self._form_label(form, "计划完成日期（可留空）", row=5)
         date_entry = ttk.Entry(form, textvariable=date_var)
         date_entry.grid(row=6, column=0, sticky="ew", pady=(4, 1))
-        self._label(form, "只做方向提醒，不会产生强提醒。格式 YYYY-MM-DD。", 8, self.colors["text_faint"], False, bg=self.colors["bg"]).grid(row=7, column=0, sticky="w")
-        footer = tk.Frame(dialog, bg=self.colors["surface_soft"], highlightthickness=0)
-        footer.grid(row=2, column=0, sticky="ew")
-        error = tk.Label(footer, text="", bg=self.colors["surface"], fg=self.colors["high"], font=("Microsoft YaHei UI", 9))
-        error.pack(side="left", padx=22)
-        self._button(footer, "取消", dialog.destroy, "ghost").pack(side="right", padx=(0, 10), pady=13)
+        self._label(form, "只做方向提醒，不会产生强提醒。格式 YYYY-MM-DD。", 8, self.colors["text_faint"], False, bg=self.colors["surface"]).grid(row=7, column=0, sticky="w")
+        footer = dialog.footer_actions
+        error = tk.Label(footer, text="", bg=footer.cget("bg"), fg=self.colors["high_ink"], font=("Microsoft YaHei UI", 9))
+        error.pack(side="left", padx=2)
+        PillButton(footer, app=self, text="取消", command=dialog.destroy, kind="ghost").pack(side="right", padx=(0, 10))
 
         def save() -> None:
             title_value = title_var.get().strip()
@@ -73,5 +70,5 @@ class GoalDialogMixin:
             self.render()
             self.show_toast("长期目标已保存")
 
-        self._button(footer, "保存目标", save, "primary").pack(side="right", padx=(0, 22), pady=13)
+        PillButton(footer, app=self, text="保存目标", command=save, kind="primary").pack(side="right", padx=(0, 2))
         title_entry.focus_set()

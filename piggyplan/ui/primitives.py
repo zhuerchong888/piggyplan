@@ -9,7 +9,8 @@ import tkinter as tk
 from typing import Any
 from ..tokens import RADIUS, SPACE
 from ..util import date_text, offset_date, today_key
-from .widgets import Card, Chip
+from .mascot import PigMark
+from .widgets import Card, Chip, PillButton, SnoutIcon
 
 
 class PrimitivesMixin:
@@ -32,9 +33,7 @@ class PrimitivesMixin:
         frame = tk.Frame(parent, bg=self.colors["bg"])
         left = tk.Frame(frame, bg=self.colors["bg"])
         left.pack(side="left")
-        dot = tk.Frame(left, width=6, height=6, bg=color or self.colors["strong"])
-        dot.pack(side="left", padx=(2, 9), pady=5)
-        dot.pack_propagate(False)
+        SnoutIcon(left, app=self, size=14).pack(side="left", padx=(0, 9))
         self._label(left, title, 10, color or self.colors["text"], True).pack(side="left")
         if count is not None:
             self._label(left, str(count), 8, self.colors["text_faint"], False).pack(side="left", padx=8)
@@ -166,16 +165,17 @@ class PrimitivesMixin:
         self.render()
 
     def empty_state(self, parent: tk.Misc, title: str, description: str, command=None) -> None:
-        box = tk.Frame(parent, bg=self.colors["surface_soft"], highlightthickness=0)
+        box = Card(parent, app=self, tone="soft", stroke=True, padding=(24, 6))
         managers = {child.winfo_manager() for child in parent.winfo_children()}
         if "grid" in managers and "pack" not in managers:
             box.grid(sticky="ew", pady=4)
         else:
             box.pack(fill="x", pady=4)
-        self._label(box, "🐷", 27, self.colors["strong"], False, bg=self.colors["soft"]).pack(pady=(26, 8), ipadx=14, ipady=7)
-        self._label(box, title, 10, self.colors["text"], True, bg=self.colors["surface_soft"]).pack()
-        self._label(box, description, 8, self.colors["text_soft"], False, bg=self.colors["surface_soft"]).pack(pady=(4, 0))
+        body_bg = box.body.cget("bg")
+        PigMark(box.body, app=self, variant="mascot").pack(pady=(18, 6))
+        self._label(box.body, title, 10, self.colors["text"], True, bg=body_bg).pack()
+        self._label(box.body, description, 8, self.colors["text_soft"], False, bg=body_bg).pack(pady=(4, 0))
         if command:
-            self._button(box, "+ 新建第一条", command, "link").pack(pady=(10, 20))
+            PillButton(box.body, app=self, text="+ 新建第一条", command=command, kind="ghost", size="sm").pack(pady=(10, 18))
         else:
-            self._label(box, "", 6, self.colors["text_soft"], False, bg=self.colors["surface_soft"]).pack(pady=(0, 16))
+            self._label(box.body, "", 6, self.colors["text_soft"], False, bg=body_bg).pack(pady=(0, 14))

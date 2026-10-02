@@ -5,6 +5,8 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk
 from typing import Any
+from ..ui.dialog import Dialog
+from ..ui.widgets import PillButton
 from ..util import category_label, parse_date, split_tags, today_key
 
 
@@ -25,21 +27,16 @@ class TaskDialogMixin:
     def open_task_dialog(self, task_id: str | None = None, preset_date: str | None = None, goal_id: str | None = None, template: dict[str, Any] | None = None) -> None:
         task = self.db.get_task(task_id) if task_id else None
         template = template or {}
-        dialog = tk.Toplevel(self)
-        dialog.title("编辑待办" if task else "新建待办")
-        dialog.configure(bg=self.colors["bg"])
-        dialog.transient(self)
-        dialog.grab_set()
-        dialog.minsize(470, 520)
-        dialog.geometry("540x730")
-        dialog.columnconfigure(0, weight=1)
-        dialog.rowconfigure(1, weight=1)
-        head = tk.Frame(dialog, bg=self.colors["surface"])
+        dialog = Dialog(self, "编辑待办" if task else "新建待办", "540x730")
+        container = dialog.content
+        container.columnconfigure(0, weight=1)
+        container.rowconfigure(1, weight=1)
+        head = tk.Frame(container, bg=self.colors["surface"])
         head.grid(row=0, column=0, sticky="ew")
         self._label(head, "编辑待办" if task else "新建待办", 17, self.colors["text"], True, bg=self.colors["surface"]).pack(anchor="w", padx=22, pady=(19, 3))
         self._label(head, "标题先行，其他信息之后再补也可以。", 9, self.colors["text_soft"], False, bg=self.colors["surface"]).pack(anchor="w", padx=22, pady=(0, 16))
-        form = tk.Frame(dialog, bg=self.colors["bg"])
-        form.grid(row=1, column=0, sticky="nsew", padx=20, pady=16)
+        form = tk.Frame(container, bg=self.colors["surface"])
+        form.grid(row=1, column=0, sticky="nsew", padx=2, pady=16)
         form.columnconfigure(0, weight=1)
         title_var = tk.StringVar(value=task["title"] if task else template.get("title", ""))
         note_default = task["note"] if task else template.get("note", "")
@@ -62,7 +59,7 @@ class TaskDialogMixin:
         note = tk.Text(form, height=4, wrap="word", bg=self.colors["surface_soft"], fg=self.colors["text"], relief="flat", bd=0, highlightbackground=self.colors["surface_soft"], highlightcolor=self.colors["strong"], highlightthickness=1, font=("Microsoft YaHei UI", 9))
         note.grid(row=3, column=0, sticky="ew", pady=(0, 13))
         note.insert("1.0", note_default)
-        properties = tk.Frame(form, bg=self.colors["bg"])
+        properties = tk.Frame(form, bg=self.colors["surface"])
         properties.grid(row=4, column=0, sticky="ew", pady=(0, 10))
         for col in range(2): properties.columnconfigure(col, weight=1)
         self._form_label(properties, "分类", 0, 0)
@@ -74,7 +71,7 @@ class TaskDialogMixin:
         self._form_label(form, "计划日期（可留空）", row=5)
         date_entry = ttk.Entry(form, textvariable=date_var)
         date_entry.grid(row=6, column=0, sticky="ew", pady=(4, 1))
-        self._label(form, "格式 YYYY-MM-DD；只保存自然日，不设置截止时刻。", 8, self.colors["text_faint"], False, bg=self.colors["bg"]).grid(row=7, column=0, sticky="w", pady=(0, 11))
+        self._label(form, "格式 YYYY-MM-DD；只保存自然日，不设置截止时刻。", 8, self.colors["text_faint"], False, bg=self.colors["surface"]).grid(row=7, column=0, sticky="w", pady=(0, 11))
         self._form_label(form, "所属长期目标", row=8)
         goal_combo = ttk.Combobox(form, textvariable=goal_var, values=list(goal_values), state="readonly")
         goal_combo.grid(row=9, column=0, sticky="ew", pady=(4, 11))
@@ -98,11 +95,10 @@ class TaskDialogMixin:
             steps.insert("1.0", "\n".join(step["title"] for step in task.get("subtasks", [])))
         elif template.get("subtasks"):
             steps.insert("1.0", "\n".join(template["subtasks"]))
-        footer = tk.Frame(dialog, bg=self.colors["surface_soft"], highlightthickness=0)
-        footer.grid(row=2, column=0, sticky="ew")
-        error = tk.Label(footer, text="", bg=self.colors["surface"], fg=self.colors["high"], font=("Microsoft YaHei UI", 9))
-        error.pack(side="left", padx=22)
-        self._button(footer, "取消", dialog.destroy, "ghost").pack(side="right", padx=(0, 10), pady=13)
+        footer = dialog.footer_actions
+        error = tk.Label(footer, text="", bg=footer.cget("bg"), fg=self.colors["high_ink"], font=("Microsoft YaHei UI", 9))
+        error.pack(side="left", padx=2)
+        PillButton(footer, app=self, text="取消", command=dialog.destroy, kind="ghost").pack(side="right", padx=(0, 10))
 
         def save() -> None:
             title_value = title_var.get().strip()
@@ -133,7 +129,7 @@ class TaskDialogMixin:
             self.render()
             self.show_toast("待办已保存")
 
-        self._button(footer, "保存待办", save, "primary").pack(side="right", padx=(0, 22), pady=13)
+        PillButton(footer, app=self, text="保存待办", command=save, kind="primary").pack(side="right", padx=(0, 2))
         title_entry.focus_set()
 
     def _form_label(self, parent: tk.Misc, text: str, row: int | None = None, col: int = 0, color: str | None = None) -> None:

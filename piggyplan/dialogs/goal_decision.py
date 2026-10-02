@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import tkinter as tk
 
+from ..ui.dialog import Dialog
+from ..ui.widgets import PillButton
+
 
 class GoalDecisionMixin:
     def goal_decision_dialog(self, goal_id: str, action: str) -> None:
@@ -11,34 +14,29 @@ class GoalDecisionMixin:
         if not goal:
             return
         is_achieve = action == "achieve"
-        dialog = tk.Toplevel(self)
-        dialog.title("达成长期目标" if is_achieve else "删除长期目标")
-        dialog.configure(bg=self.colors["bg"])
-        dialog.transient(self)
-        dialog.grab_set()
-        dialog.geometry("480x330" if is_achieve else "480x270")
+        dialog = Dialog(self, "达成长期目标" if is_achieve else "删除长期目标", "480x330" if is_achieve else "480x270")
+        container = dialog.content
         title = "标记目标已达成" if is_achieve else "删除长期目标"
-        self._label(dialog, title, 15, self.colors["text"], True, bg=self.colors["bg"]).pack(anchor="w", padx=20, pady=(19, 4))
+        self._label(container, title, 15, self.colors["text"], True).pack(anchor="w", padx=2, pady=(0, 4))
         if is_achieve:
-            self._label(dialog, f"「{goal['title']}」还有 {goal['remaining']} 个未完成待办，请选择如何处理。", 9, self.colors["text_soft"], False, bg=self.colors["bg"], wraplength=420, justify="left").pack(anchor="w", padx=20, pady=(0, 13))
+            self._label(container, f"「{goal['title']}」还有 {goal['remaining']} 个未完成待办，请选择如何处理。", 9, self.colors["text_soft"], False, wraplength=416, justify="left").pack(anchor="w", padx=2, pady=(0, 13))
             choice = tk.StringVar(value="detach")
             options = [("detach", "转为独立待办", "待办保留，解除与该目标的关联"), ("complete", "全部标记为完成", "写入当前完成时间，并计入实际完成数量"), ("delete", "删除这些待办", "未完成待办移入删除状态，不计入完成数量")]
         else:
-            self._label(dialog, f"「{goal['title']}」仍有关联待办，请选择处理方式。", 9, self.colors["text_soft"], False, bg=self.colors["bg"], wraplength=420, justify="left").pack(anchor="w", padx=20, pady=(0, 13))
+            self._label(container, f"「{goal['title']}」仍有关联待办，请选择处理方式。", 9, self.colors["text_soft"], False, wraplength=416, justify="left").pack(anchor="w", padx=2, pady=(0, 13))
             choice = tk.StringVar(value="detach")
             options = [("detach", "保留并转为独立待办", "关联待办本身不变，只解除目标关系"), ("delete", "删除未完成关联待办", "已完成待办保留，未完成待办移入删除状态")]
-        body = tk.Frame(dialog, bg=self.colors["bg"])
-        body.pack(fill="x", padx=20)
+        body = tk.Frame(container, bg=self.colors["surface"])
+        body.pack(fill="x", padx=2)
         for value, label, description in options:
-            line = tk.Frame(body, bg=self.colors["bg"])
+            line = tk.Frame(body, bg=self.colors["surface"])
             line.pack(fill="x", pady=4)
-            tk.Radiobutton(line, variable=choice, value=value, bg=self.colors["bg"], activebackground=self.colors["bg"], selectcolor=self.colors["surface"], highlightthickness=0).pack(side="left")
-            copy = tk.Frame(line, bg=self.colors["bg"])
+            tk.Radiobutton(line, variable=choice, value=value, bg=self.colors["surface"], activebackground=self.colors["bg"], selectcolor=self.colors["surface"], highlightthickness=0).pack(side="left")
+            copy = tk.Frame(line, bg=self.colors["surface"])
             copy.pack(side="left", padx=4)
-            self._label(copy, label, 9, self.colors["text"], True, bg=self.colors["bg"]).pack(anchor="w")
-            self._label(copy, description, 8, self.colors["text_soft"], False, bg=self.colors["bg"]).pack(anchor="w")
-        footer = tk.Frame(dialog, bg=self.colors["surface_soft"], highlightthickness=0)
-        footer.pack(fill="x", side="bottom", pady=(16, 0))
+            self._label(copy, label, 9, self.colors["text"], True, bg=self.colors["surface"]).pack(anchor="w")
+            self._label(copy, description, 8, self.colors["text_soft"], False, bg=self.colors["surface"]).pack(anchor="w")
+        footer = dialog.footer_actions
 
         def confirm() -> None:
             if is_achieve:
@@ -52,6 +50,5 @@ class GoalDecisionMixin:
             self.render()
             self.show_toast(message)
 
-        self._button(footer, "取消", dialog.destroy, "ghost").pack(side="right", padx=(0, 7), pady=10)
-        self._button(footer, "确认", confirm, "primary").pack(side="right", padx=(0, 20), pady=10)
-        dialog.bind("<Escape>", lambda _event: dialog.destroy())
+        PillButton(footer, app=self, text="取消", command=dialog.destroy, kind="ghost").pack(side="right", padx=(0, 7))
+        PillButton(footer, app=self, text="确认", command=confirm, kind="primary").pack(side="right", padx=(0, 2))

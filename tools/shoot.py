@@ -152,7 +152,10 @@ def worker(label: str) -> None:
             try:
                 app.open_task_dialog()
                 quiesce(app)
-                grabber.grab(app, target)
+                # 对话框是独立 Toplevel，PrintWindow 抓主窗口抓不到它；直接抓对话框 hwnd。
+                import tkinter as tk_tk
+                dialog = next(child for child in app.winfo_children() if isinstance(child, tk_tk.Toplevel))
+                grabber.grab(dialog, target)
                 print("  dialog-task.png", flush=True)
                 app.destroy_top_level()
             finally:

@@ -12,6 +12,9 @@ import sys
 from datetime import date, datetime
 from .constants import APP_NAME, APP_VERSION, HOTKEY_DEFAULT
 from .tokens import THEME_KEYS, palette, resolve_fonts
+from .ui.mascot import PigMark
+from .ui.shape import round_rect
+from .ui.widgets import Card, PillButton
 from .database import Database
 from .runtime.paths import app_backup_dir, app_data_dir, app_log_dir, log_event
 from .runtime.windows_integration import WindowsIntegration
@@ -180,7 +183,7 @@ class PiggyPlanApp(
         self.header.grid_columnconfigure(1, weight=0)
         self.header.grid_columnconfigure(2, weight=1)
         self.header.grid_columnconfigure(3, weight=0)
-        self.header_title = tk.Label(self.header, text="今天", bg=self.colors["bg"], fg=self.colors["text"], font=("Microsoft YaHei UI", 23, "bold"))
+        self.header_title = tk.Label(self.header, text="今天", bg=self.colors["bg"], fg=self.colors["text"], font=self.font("display"))
         self.header_title.grid(row=0, column=0, sticky="w", padx=(34, 10), pady=(22, 0))
         self.header_caption = tk.Label(self.header, text=today_text(), bg=self.colors["bg"], fg=self.colors["text_soft"], font=("Microsoft YaHei UI", 10))
         self.header_caption.grid(row=1, column=0, sticky="w", padx=(34, 10), pady=(2, 18))
@@ -191,20 +194,20 @@ class PiggyPlanApp(
         self.search_entry.grid(row=0, column=0, sticky="ew", ipady=3)
         self.search_entry.insert(0, "")
         self.search_entry.configure(width=32)
-        self.new_button = self._button(self.header, "+  新建待办", self.open_new_task, "primary", width=12)
+        self.new_button = PillButton(self.header, app=self, text="+  新建待办", command=self.open_new_task, kind="primary", size="md")
         self.new_button.grid(row=0, column=3, rowspan=2, padx=(0, 34), pady=23, sticky="e")
 
     def _build_sidebar(self) -> None:
         self.sidebar.grid_rowconfigure(10, weight=1)
         brand = tk.Frame(self.sidebar, bg=self.colors["soft_surface"])
         brand.grid(row=0, column=0, sticky="ew", padx=20, pady=(26, 22))
-        self._pig_mark(brand).pack(side="left")
+        PigMark(brand, app=self, variant="logo").pack(side="left")
         brand_text = tk.Frame(brand, bg=self.colors["soft_surface"])
         brand_text.pack(side="left", padx=10)
         tk.Label(brand_text, text="日常", bg=self.colors["soft_surface"], fg=self.colors["text"], font=("Microsoft YaHei UI", 17, "bold")).pack(anchor="w")
-        tk.Label(brand_text, text="PIGGYPLAN · LOCAL FIRST", bg=self.colors["soft_surface"], fg=self.colors["text_faint"], font=("Segoe UI", 7, "bold")).pack(anchor="w", pady=(1, 0))
-        self.sidebar_new = self._button(self.sidebar, "+  新建待办", self.open_new_task, "primary", width=24)
-        self.sidebar_new.grid(row=1, column=0, sticky="ew", padx=16, pady=(0, 20), ipady=4)
+        tk.Label(brand_text, text="PIGGYPLAN · LOCAL FIRST", bg=self.colors["soft_surface"], fg=self.colors["ink_soft"], font=self.font("micro")).pack(anchor="w", pady=(1, 0))
+        self.sidebar_new = PillButton(self.sidebar, app=self, text="+  新建待办", command=self.open_new_task, kind="primary", size="lg")
+        self.sidebar_new.grid(row=1, column=0, sticky="ew", padx=16, pady=(0, 20))
         self.nav_frame = tk.Frame(self.sidebar, bg=self.colors["soft_surface"])
         self.nav_frame.grid(row=2, column=0, sticky="new", padx=10)
         self.nav_buttons: dict[str, tk.Button] = {}
@@ -218,22 +221,27 @@ class PiggyPlanApp(
         self._nav_button("settings", "偏好设置", 7)
         footer = tk.Frame(self.sidebar, bg=self.colors["soft_surface"])
         footer.grid(row=11, column=0, sticky="sew", padx=16, pady=17)
-        footer_card = tk.Frame(footer, bg=self.colors["soft"], highlightthickness=0)
+        footer_card = Card(footer, app=self, tone="surface", stroke=True, padding=(14, 12))
         footer_card.pack(fill="x")
-        tk.Label(footer_card, text="小猪的本地日常", bg=self.colors["soft"], fg=self.colors["strong"], font=("Microsoft YaHei UI", 10, "bold")).pack(anchor="w", padx=14, pady=(12, 2))
-        tk.Label(footer_card, text="数据只保存在本机 SQLite\n不联网，也能安心使用", justify="left", bg=self.colors["soft"], fg=self.colors["text_soft"], font=("Microsoft YaHei UI", 9)).pack(anchor="w", padx=14, pady=(0, 12))
-        tk.Label(footer, text=f"版本 {APP_VERSION}", bg=self.colors["soft_surface"], fg=self.colors["text_faint"], font=("Microsoft YaHei UI", 8)).pack(anchor="w", pady=(9, 0))
+        card_bg = footer_card.body.cget("bg")
+        tk.Label(footer_card.body, text="你的事都装在这只猪身上", bg=card_bg, fg=self.colors["ink"], font=self.font("body")).pack(anchor="w")
+        tk.Label(footer_card.body, text="只写本机，不联网", justify="left", bg=card_bg, fg=self.colors["ink_soft"], font=self.font("meta")).pack(anchor="w", pady=(2, 0))
+        tk.Label(footer, text=f"版本 {APP_VERSION}", bg=self.colors["soft_surface"], fg=self.colors["ink_soft"], font=self.font("micro")).pack(anchor="w", pady=(9, 0))
 
     def _nav_button(self, view: str, text: str, row: int, show_count: bool = False) -> None:
-        frame = tk.Frame(self.nav_frame, bg=self.colors["soft_surface"])
-        frame.grid(row=row, column=0, sticky="ew")
-        frame.grid_columnconfigure(0, weight=1)
-        button = tk.Button(frame, text=text, command=lambda v=view: self.navigate(v), anchor="w", relief="flat", bd=0, padx=14, pady=10, font=("Microsoft YaHei UI", 10), cursor="hand2")
-        button.grid(row=0, column=0, sticky="ew")
+        colors = self.colors
+        frame = tk.Frame(self.nav_frame, bg=colors["soft_surface"])
+        frame.grid(row=row, column=0, sticky="ew", pady=2)
+        frame.grid_columnconfigure(1, weight=1)
+        indicator = tk.Canvas(frame, width=4, height=20, bg=colors["soft_surface"], highlightthickness=0, bd=0)
+        indicator.grid(row=0, column=0, padx=(2, 9))
+        button = tk.Button(frame, text=text, command=lambda v=view: self.navigate(v), anchor="w", relief="flat", bd=0, padx=14, pady=10, font=("Microsoft YaHei UI", 10), cursor="hand2", bg=colors["soft_surface"], fg=colors["text_soft"], activebackground=colors["soft_surface"])
+        button.grid(row=0, column=1, sticky="ew")
         if show_count:
-            count = tk.Label(frame, text="", width=4, font=("Microsoft YaHei UI", 8, "bold"), padx=4, pady=2)
-            count.grid(row=0, column=1, padx=(0, 8))
+            count = tk.Label(frame, text="", width=4, font=("Microsoft YaHei UI", 8, "bold"), padx=4, pady=2, bg=colors["soft_surface"])
+            count.grid(row=0, column=2, padx=(0, 8))
             button._count_label = count  # type: ignore[attr-defined]
+        button._indicator = indicator  # type: ignore[attr-defined]
         self.nav_buttons[view] = button
 
     def _button(self, parent: tk.Misc, text: str, command, kind: str = "ghost", width: int | None = None) -> tk.Button:
@@ -250,21 +258,6 @@ class PiggyPlanApp(
         if width:
             button.configure(width=width)
         return button
-
-    def _pig_mark(self, parent: tk.Misc) -> tk.Canvas:
-        """Draw a small, crisp pig face without relying on emoji font support."""
-
-        colors = self.colors
-        canvas = tk.Canvas(parent, width=44, height=44, bg=self.colors["soft_surface"], highlightthickness=0, bd=0)
-        canvas.create_oval(5, 7, 39, 41, fill=colors["accent"], outline="")
-        canvas.create_polygon(8, 13, 7, 3, 17, 9, fill=colors["accent"], outline="")
-        canvas.create_polygon(36, 13, 37, 3, 27, 9, fill=colors["accent"], outline="")
-        canvas.create_oval(14, 18, 17, 21, fill=self.colors["text"], outline="")
-        canvas.create_oval(27, 18, 30, 21, fill=self.colors["text"], outline="")
-        canvas.create_oval(15, 25, 29, 35, fill="#F9AFC4", outline="")
-        canvas.create_oval(18, 28, 21, 31, fill="#A94E6D", outline="")
-        canvas.create_oval(23, 28, 26, 31, fill="#A94E6D", outline="")
-        return canvas
 
     def _label(self, parent: tk.Misc, text: str, size: int = 10, color: str | None = None, bold: bool = False, **kwargs) -> tk.Label:
         return tk.Label(parent, text=text, bg=kwargs.pop("bg", self.colors["bg"]), fg=color or self.colors["text"], font=("Microsoft YaHei UI", size, "bold" if bold else "normal"), **kwargs)
@@ -501,7 +494,12 @@ class PiggyPlanApp(
         colors = self.colors
         for view, button in self.nav_buttons.items():
             active = (view == "goals" and self.selected_goal_id) or (view == self.view and not self.search_var.get().strip() and not self.selected_goal_id)
-            button.configure(bg=colors["accent"] if active else colors["soft_surface"], fg=colors["strong"] if active else self.colors["text_soft"], activebackground=colors["soft"] if active else colors["surface"], font=("Microsoft YaHei UI", 10, "bold" if active else "normal"))
+            button.configure(bg=colors["soft"] if active else colors["soft_surface"], fg=colors["ink"] if active else colors["text_soft"], activebackground=colors["soft"] if active else colors["soft_surface"], font=("Microsoft YaHei UI", 10, "bold" if active else "normal"))
+            indicator = getattr(button, "_indicator", None)
+            if indicator is not None:
+                indicator.delete("all")
+                if active:
+                    round_rect(indicator, 0, 1, 3, max(4, indicator.winfo_height() - 1), 2, fill=colors["accentDeep"], outline="")
             count_label = getattr(button, "_count_label", None)
             if count_label:
                 if view == "today":
@@ -510,7 +508,7 @@ class PiggyPlanApp(
                     count_label.configure(text=str(len(self.db.list_tasks())))
                 elif view == "goals":
                     count_label.configure(text=str(len(self.db.list_goals(status="active"))))
-                count_label.configure(bg=colors["accent"] if active else colors["soft_surface"], fg=colors["strong"] if active else self.colors["text_faint"])
+                count_label.configure(bg=colors["soft"] if active else colors["soft_surface"], fg=colors["ink_soft"])
 
     def toggle_completed(self) -> None:
         self.completed_open = not self.completed_open

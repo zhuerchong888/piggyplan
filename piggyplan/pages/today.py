@@ -47,7 +47,7 @@ class TodayMixin:
             for task in normal:
                 self.task_row(today_block, task, show_date=False)
         if not planned_today:
-            self.empty_state(today_block, "今天没有安排事项", "需要做的事可以先放到之后或未安排。", self.open_new_task)
+            self.empty_state(today_block, "今天还空着", "放进第一件事", self.open_new_task)
         row += 1
         completed_box = tk.Frame(parent, bg=self.colors["surface_soft"], highlightthickness=0)
         completed_box.grid(row=row, column=0, sticky="ew", pady=(20, 0))
