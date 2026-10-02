@@ -7,7 +7,9 @@ from __future__ import annotations
 
 import tkinter as tk
 from typing import Any
+from ..tokens import RADIUS, SPACE
 from ..util import date_text, offset_date, today_key
+from .widgets import Card, Chip
 
 
 class PrimitivesMixin:
@@ -40,16 +42,18 @@ class PrimitivesMixin:
             self._button(frame, f"+ {action_text}", command, "link").pack(side="right")
         return frame
 
-    def card(self, parent: tk.Misc, padx: int = 16, pady: int = 14) -> tk.Frame:
-        frame = tk.Frame(parent, bg=self.colors["surface"], highlightthickness=0)
-        frame.pack(fill="x", pady=(0, 10))
-        frame_inner = tk.Frame(frame, bg=self.colors["surface"])
-        frame_inner.pack(fill="both", expand=True, padx=padx, pady=pady)
-        return frame_inner
+    _card_tone = "surface"
+    _card_stroke = False
+    _card_hover = True
 
-    def badge(self, parent: tk.Misc, text: str, bg: str | None = None, fg: str | None = None) -> tk.Label:
-        label = tk.Label(parent, text=text, bg=bg or self.colors["soft"], fg=fg or "#A04868", font=("Microsoft YaHei UI", 8, "bold"), padx=7, pady=3)
-        return label
+    def card(self, parent: tk.Misc, padx: int = 16, pady: int = 14) -> tk.Frame:
+        box = Card(parent, app=self, tone=self._card_tone, radius=RADIUS["card"],
+                   padding=(padx, pady), stroke=self._card_stroke, hoverable=self._card_hover)
+        box.pack(fill="x", pady=(0, SPACE["2"]))
+        return box.body
+
+    def badge(self, parent: tk.Misc, text: str, bg: str | None = None, fg: str | None = None):
+        return Chip(parent, app=self, text=text, fill=bg, foreground=fg)
 
     def _scrollable_task_holder(self, parent: tk.Misc) -> tk.Frame:
         holder = tk.Frame(parent, bg=self.colors["bg"])

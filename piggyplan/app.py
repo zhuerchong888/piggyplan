@@ -11,7 +11,7 @@ import os
 import sys
 from datetime import date, datetime
 from .constants import APP_NAME, APP_VERSION, HOTKEY_DEFAULT
-from .tokens import THEME_KEYS, palette
+from .tokens import THEME_KEYS, palette, resolve_fonts
 from .database import Database
 from .runtime.paths import app_backup_dir, app_data_dir, app_log_dir, log_event
 from .runtime.windows_integration import WindowsIntegration
@@ -120,6 +120,12 @@ class PiggyPlanApp(
             cached = palette(self.theme_key)
             self._colors_cache[self.theme_key] = cached
         return cached
+
+    def font(self, role: str):
+        """按角色返回 (family, size, weight)；字族在首次调用时解析一次。"""
+        if not hasattr(self, "_fonts"):
+            self._fonts = resolve_fonts(self)
+        return self._fonts[role]
 
     def _configure_styles(self) -> None:
         style = ttk.Style(self)
