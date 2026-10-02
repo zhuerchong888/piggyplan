@@ -1,0 +1,177 @@
+"""UI 原语：页头 / 分节标题 / 卡片 / 徽章 / 任务行 / 空状态，以及拖拽、右键、圈选绑定。
+
+页面只消费这些原语，不直接拼 Frame；颜色与字号经 self.colors 与类常量获取
+（Task 5 起改走 tokens）。"""
+
+from __future__ import annotations
+
+import tkinter as tk
+from typing import Any
+from ..util import date_text, offset_date, today_key
+
+
+class PrimitivesMixin:
+    def page_header(self, parent: tk.Misc, eyebrow: str, title: str, description: str, stat: tuple[str, str] | None = None) -> tk.Frame:
+        header = tk.Frame(parent, bg=self.BG)
+        header.grid(row=0, column=0, sticky="ew", pady=(0, 22))
+        header.grid_columnconfigure(0, weight=1)
+        label = self._label(header, f"PIGGY MOMENT · {eyebrow.upper()}", 8, self.colors["strong"], True)
+        label.grid(row=0, column=0, sticky="w", pady=(0, 6))
+        self._label(header, title, 22, self.TEXT, True).grid(row=1, column=0, sticky="w")
+        self._label(header, description, 9, self.TEXT_SOFT, False, wraplength=610, justify="left").grid(row=2, column=0, sticky="w", pady=(6, 0))
+        if stat:
+            stat_box = tk.Frame(header, bg=self.colors["soft"], highlightthickness=0)
+            stat_box.grid(row=0, column=1, rowspan=3, sticky="e", padx=(18, 0))
+            self._label(stat_box, stat[0], 19, self.colors["strong"], True, bg=self.colors["soft"]).pack(anchor="e", padx=18, pady=(13, 0))
+            self._label(stat_box, stat[1], 8, self.TEXT_SOFT, False, bg=self.colors["soft"]).pack(anchor="e", padx=18, pady=(0, 13))
+        return header
+
+    def section_title(self, parent: tk.Misc, title: str, count: int | None = None, action_text: str | None = None, command=None, color: str | None = None) -> tk.Frame:
+        frame = tk.Frame(parent, bg=self.BG)
+        left = tk.Frame(frame, bg=self.BG)
+        left.pack(side="left")
+        dot = tk.Frame(left, width=6, height=6, bg=color or self.colors["strong"])
+        dot.pack(side="left", padx=(2, 9), pady=5)
+        dot.pack_propagate(False)
+        self._label(left, title, 10, color or self.TEXT, True).pack(side="left")
+        if count is not None:
+            self._label(left, str(count), 8, self.TEXT_FAINT, False).pack(side="left", padx=8)
+        if action_text and command:
+            self._button(frame, f"+ {action_text}", command, "link").pack(side="right")
+        return frame
+
+    def card(self, parent: tk.Misc, padx: int = 16, pady: int = 14) -> tk.Frame:
+        frame = tk.Frame(parent, bg=self.SURFACE, highlightthickness=0)
+        frame.pack(fill="x", pady=(0, 10))
+        frame_inner = tk.Frame(frame, bg=self.SURFACE)
+        frame_inner.pack(fill="both", expand=True, padx=padx, pady=pady)
+        return frame_inner
+
+    def badge(self, parent: tk.Misc, text: str, bg: str | None = None, fg: str | None = None) -> tk.Label:
+        label = tk.Label(parent, text=text, bg=bg or self.colors["soft"], fg=fg or "#A04868", font=("Microsoft YaHei UI", 8, "bold"), padx=7, pady=3)
+        return label
+
+    def _scrollable_task_holder(self, parent: tk.Misc) -> tk.Frame:
+        holder = tk.Frame(parent, bg=self.BG)
+        holder.pack(fill="both", expand=True)
+        return holder
+
+    def task_row(self, parent: tk.Misc, task: dict[str, Any], show_date: bool = True, compact: bool = False, selectable: bool = False) -> tk.Frame:
+        colors = self.colors
+        frame = tk.Frame(parent, bg=self.SURFACE, highlightthickness=0, cursor="hand2")
+        frame.pack(fill="x", pady=(0, 9))
+        stripe = tk.Frame(frame, width=3, bg=self.HIGH if task["priority"] == "high" else colors["accent"])
+        stripe.pack(side="left", fill="y")
+        body = tk.Frame(frame, bg=self.SURFACE)
+        body.pack(fill="both", expand=True, padx=12, pady=11)
+        if selectable:
+            chosen = tk.BooleanVar(value=task["id"] in self.selected_task_ids)
+            selector = tk.Checkbutton(body, variable=chosen, command=lambda tid=task["id"], var=chosen: self._toggle_selection(tid, var.get()), bg=self.SURFACE, activebackground=self.SURFACE, selectcolor=self.SURFACE, bd=0, highlightthickness=0)
+            selector.pack(side="left", padx=(0, 6))
+        check = tk.Button(body, text="✓" if task["status"] == "completed" else "·", command=lambda tid=task["id"]: self.toggle_task(tid), width=2, height=1, relief="flat", bd=0, font=("Segoe UI", 10, "bold"), bg=colors["strong"] if task["status"] == "completed" else colors["soft"], fg="white" if task["status"] == "completed" else colors["accent"], activebackground=colors["strong"], activeforeground="white", cursor="hand2", highlightthickness=0)
+        check.pack(side="left", padx=(0, 11))
+        middle = tk.Frame(body, bg=self.SURFACE)
+        middle.pack(side="left", fill="x", expand=True)
+        title = self._label(middle, task["title"], 10, self.TEXT_SOFT if task["status"] == "completed" else self.TEXT, True, bg=self.SURFACE, anchor="w")
+        title.pack(fill="x")
+        if task.get("note") and not compact:
+            self._label(middle, task["note"], 8, self.TEXT_FAINT, False, bg=self.SURFACE, anchor="w").pack(fill="x", pady=(3, 0))
+        meta = tk.Frame(middle, bg=self.SURFACE)
+        meta.pack(fill="x", pady=(6, 0))
+        if show_date:
+            planned = task.get("planned_date")
+            date_color = self.HIGH if planned and planned < today_key() and task["status"] == "todo" else colors["strong"] if planned == today_key() else self.WARNING if planned == offset_date(1) else self.TEXT_FAINT
+            self._label(meta, f"◷  {date_text(planned)}", 8, date_color, planned and planned < today_key() and task["status"] == "todo", bg=self.SURFACE).pack(side="left", padx=(0, 11))
+        self.badge(meta, "生活" if task["category"] == "life" else "工作", "#FDF2E4" if task["category"] == "life" else colors["soft"], "#A06830" if task["category"] == "life" else "#A04868").pack(side="left", padx=(0, 6))
+        for tag in task.get("tags", [])[:2 if not compact else 1]:
+            self.badge(meta, f"#{tag}", "#F5EEF0", "#8B6B73").pack(side="left", padx=(0, 5))
+        if task.get("goal_title"):
+            self.badge(meta, f"◎ {task['goal_title']}", colors["soft"], "#A04868").pack(side="left", padx=(0, 5))
+        if task.get("subtasks"):
+            done = sum(1 for step in task["subtasks"] if step["completed"])
+            self._label(meta, f"☷ {done}/{len(task['subtasks'])}", 8, self.TEXT_FAINT, False, bg=self.SURFACE).pack(side="left")
+        actions = tk.Frame(body, bg=self.SURFACE)
+        actions.pack(side="right", padx=(6, 0))
+        self._button(actions, "详情", lambda tid=task["id"]: self.open_task_dialog(tid), "ghost").pack(side="left")
+        self._button(actions, "⋮", lambda tid=task["id"], widget=frame: self.open_context_menu(tid, widget), "ghost").pack(side="left")
+        self._bind_right_click(frame, task["id"])
+        frame._task_id = task["id"]  # type: ignore[attr-defined]
+        for child in (frame, body, middle, title, meta):
+            child.bind("<Double-Button-1>", lambda _event, tid=task["id"]: self.open_task_dialog(tid))
+            child.bind("<ButtonPress-1>", lambda event, tid=task["id"], row=frame: self._drag_start(event, tid, row), add="+")
+            child.bind("<B1-Motion>", self._drag_motion, add="+")
+            child.bind("<ButtonRelease-1>", self._drag_release, add="+")
+        return frame
+
+    def _drag_start(self, event: tk.Event, task_id: str, row: tk.Widget) -> None:
+        self._drag_task_id = task_id
+        self._drag_widget = row
+        self._drag_start_y = int(event.y_root)
+
+    def _drag_motion(self, event: tk.Event) -> None:
+        if not self._drag_widget or abs(int(event.y_root) - self._drag_start_y) < 5:
+            return
+        try:
+            self._drag_widget.configure(highlightbackground=self.colors["strong"], highlightthickness=2)
+        except tk.TclError:
+            pass
+
+    def _drag_release(self, event: tk.Event) -> None:
+        task_id = self._drag_task_id
+        row = self._drag_widget
+        self._drag_task_id = None
+        self._drag_widget = None
+        if not task_id or not row or abs(int(event.y_root) - self._drag_start_y) < 5:
+            return
+        parent = row.master
+        siblings = [child for child in parent.winfo_children() if getattr(child, "_task_id", None)]
+        ordered = [getattr(child, "_task_id") for child in siblings]
+        if task_id not in ordered:
+            return
+        ordered.remove(task_id)
+        insert_at = len(ordered)
+        target_task_id: str | None = None
+        for child in siblings:
+            child_id = getattr(child, "_task_id")
+            if child_id == task_id:
+                continue
+            middle = child.winfo_rooty() + child.winfo_height() / 2
+            if int(event.y_root) < middle:
+                insert_at = ordered.index(child_id)
+                target_task_id = child_id
+                break
+        ordered.insert(insert_at, task_id)
+        dragged = self.db.get_task(task_id)
+        target = self.db.get_task(target_task_id) if target_task_id else (self.db.get_task(ordered[-2]) if len(ordered) > 1 else None)
+        if dragged and target and dragged["priority"] != target["priority"]:
+            self.db.update_task(task_id, {"priority": target["priority"]})
+        self.db.reorder_tasks(ordered)
+        self.render()
+        self.show_toast("任务顺序已更新")
+
+    def _bind_right_click(self, widget: tk.Misc, task_id: str) -> None:
+        widget.bind("<Button-3>", lambda event, tid=task_id: self.open_context_menu(tid, event))
+        for child in widget.winfo_children():
+            self._bind_right_click(child, task_id)
+
+    def _toggle_selection(self, task_id: str, selected: bool) -> None:
+        if selected:
+            self.selected_task_ids.add(task_id)
+        else:
+            self.selected_task_ids.discard(task_id)
+        self.render()
+
+    def empty_state(self, parent: tk.Misc, title: str, description: str, command=None) -> None:
+        box = tk.Frame(parent, bg=self.SURFACE_SOFT, highlightthickness=0)
+        managers = {child.winfo_manager() for child in parent.winfo_children()}
+        if "grid" in managers and "pack" not in managers:
+            box.grid(sticky="ew", pady=4)
+        else:
+            box.pack(fill="x", pady=4)
+        self._label(box, "🐷", 27, self.colors["strong"], False, bg=self.colors["soft"]).pack(pady=(26, 8), ipadx=14, ipady=7)
+        self._label(box, title, 10, self.TEXT, True, bg=self.SURFACE_SOFT).pack()
+        self._label(box, description, 8, self.TEXT_SOFT, False, bg=self.SURFACE_SOFT).pack(pady=(4, 0))
+        if command:
+            self._button(box, "+ 新建第一条", command, "link").pack(pady=(10, 20))
+        else:
+            self._label(box, "", 6, self.TEXT_SOFT, False, bg=self.SURFACE_SOFT).pack(pady=(0, 16))

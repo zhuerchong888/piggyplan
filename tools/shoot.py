@@ -120,10 +120,15 @@ def worker(label: str) -> None:
 
     import piggyplan_desktop
 
+    try:
+        from piggyplan.database import Database  # 拆包后的来源
+    except ImportError:  # 单文件时代：Database 定义在根模块里
+        Database = piggyplan_desktop.Database
+
     out = ROOT / "shots" / label
     out.mkdir(parents=True, exist_ok=True)
     folder = tempfile.TemporaryDirectory()
-    database = piggyplan_desktop.Database(Path(folder.name) / "shots.db", seed=True)
+    database = Database(Path(folder.name) / "shots.db", seed=True)
     app = piggyplan_desktop.PiggyPlanApp(database=database)
     app.geometry("1160x760+60+40")
     grabber = Grabber()
