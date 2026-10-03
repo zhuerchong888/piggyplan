@@ -18,14 +18,3 @@ PiggyPlan.spec
 backups/
 logs/
 *.log
-.zcodeignore
-.env
-.env.*
-!.env.example
-*.db
-*.db-wal
-*.db-shm
-*.sqlite*
-backups/
-logs/
-*.log

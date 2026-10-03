@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 APP_NAME = "日常 · PiggyPlan"
-APP_VERSION = "1.1.1"
+APP_VERSION = "1.1.2"
 DAY_FORMAT = "%Y-%m-%d"
 APP_MUTEX_NAME = "Local\\PiggyPlan.Desktop.SingleInstance"
 AUTOSTART_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"

@@ -1,4 +1,4 @@
-# 日常 · PiggyPlan 1.1.1
+# 日常 · PiggyPlan 1.1.2
 
 PiggyPlan 是一款可在 Windows 本机运行的个人待办与长期目标管理软件。主程序使用原生桌面窗口和 SQLite 数据库，不需要浏览器、账号、网络连接或后台数据库服务。
 
@@ -16,7 +16,7 @@ PiggyPlan 是一款可在 Windows 本机运行的个人待办与长期目标管�
 
 已构建的绿色便携版位于 `dist\PiggyPlan`，也可以直接双击其中的
 `PiggyPlan.exe`。便携版不需要安装 Python，不需要浏览器，也不会联网。
-当前分发包为 `dist/PiggyPlan-Windows-x64-1.1.1.zip`，旁边附 SHA256 校验文件。
+当前分发包为 `dist/PiggyPlan-Windows-x64-1.1.2.zip`，旁边附 SHA256 校验文件。
 
 也可以在 PowerShell 中运行：
 

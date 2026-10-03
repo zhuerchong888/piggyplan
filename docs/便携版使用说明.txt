@@ -1,4 +1,4 @@
-PiggyPlan 1.1.1 Windows 绿色便携版
+PiggyPlan 1.1.2 Windows 绿色便携版
 ============================
 
 启动方式
