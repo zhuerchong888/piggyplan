@@ -163,6 +163,26 @@ class DataWorkflowTests(unittest.TestCase):
             finally:
                 db.close()
 
+    def test_import_rejects_unknown_source_and_newer_versions(self):
+        with tempfile.TemporaryDirectory() as folder:
+            db = Database(Path(folder) / "tasks.db")
+            try:
+                task_id = db.create_task("原任务", planned_date="2026-10-02")
+                before = db.backup_payload()
+                for label, payload in (
+                    ("newer version", {**before, "version": 2}),
+                    ("string version", {**before, "version": "1"}),
+                    ("other app", {**before, "app": "not-piggyplan"}),
+                ):
+                    with self.subTest(label=label):
+                        source = Path(folder) / "rejected.json"
+                        source.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+                        with self.assertRaises(ValueError):
+                            db.import_json(source)
+                        self.assertIsNotNone(db.get_task(task_id))
+            finally:
+                db.close()
+
 
 class InterfaceWorkflowTests(unittest.TestCase):
     def setUp(self):

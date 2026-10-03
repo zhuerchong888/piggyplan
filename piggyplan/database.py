@@ -244,7 +244,7 @@ class Database:
                     self.conn.execute("UPDATE task_plan_history SET superseded_at=?,became_due=?,fulfilled_on_time=CASE WHEN ? THEN COALESCE(fulfilled_on_time,0) ELSE fulfilled_on_time END,cancelled_before_due=? WHERE id=?", (timestamp, int(due), int(due), int(not due), current["id"]))
                 if planned_date:
                     self._insert_plan(task_id, planned_date, timestamp)
-            fields = {"title": values.get("title", task["title"]).strip(), "note": values.get("note", task["note"]).strip(), "category": values.get("category", task["category"]), "priority": values.get("priority", task["priority"]), "planned_date": planned_date, "goal_id": values.get("goal_id", task["goal_id"]) or None, "updated_at": timestamp}
+            fields = {"title": (values.get("title") or task["title"]).strip(), "note": (values.get("note", task["note"]) or "").strip(), "category": values.get("category", task["category"]), "priority": values.get("priority", task["priority"]), "planned_date": planned_date, "goal_id": values.get("goal_id", task["goal_id"]) or None, "updated_at": timestamp}
             self.conn.execute("UPDATE tasks SET title=:title,note=:note,category=:category,priority=:priority,planned_date=:planned_date,goal_id=:goal_id,updated_at=:updated_at WHERE id=:id", {**fields, "id": task_id})
             if "tags" in values:
                 self._sync_tags(task_id, values["tags"])
@@ -282,7 +282,8 @@ class Database:
             elif row["planned_date"] < completed_day:
                 self.conn.execute("UPDATE task_plan_history SET became_due=1,fulfilled_on_time=0 WHERE id=?", (row["id"],))
             else:
-                self.conn.execute("UPDATE task_plan_history SET fulfilled_on_time=0 WHERE id=?", (row["id"],))
+                # 提前完成同样算按计划达成；逾期判断留给撤销完成时重算。
+                self.conn.execute("UPDATE task_plan_history SET fulfilled_on_time=1 WHERE id=?", (row["id"],))
 
     def toggle_task(self, task_id: str) -> None:
         task = self.get_task(task_id)
@@ -493,17 +494,39 @@ class Database:
             if temporary.exists():
                 temporary.unlink()
 
+    @staticmethod
+    def _csv_cell(value: Any) -> str:
+        """挡住 Excel 公式注入：以 =+-@ 等开头的文本加单引号前缀。"""
+
+        text = str(value)
+        return "'" + text if text[:1] in ("=", "+", "-", "@", "\t", "\r") else text
+
     def export_csv(self, path: str | Path) -> None:
         with Path(path).open("w", encoding="utf-8-sig", newline="") as handle:
             writer = csv.writer(handle)
             writer.writerow(["标题", "状态", "分类", "优先级", "计划日期", "实际完成日期", "所属目标", "标签", "备注"])
             for task in self.list_tasks(include_completed=True, status="completed"):
-                writer.writerow([task["title"], "已完成", category_label(task["category"]), "高" if task["priority"] == "high" else "普通", task.get("planned_date") or "", task["completed_at"][:10] if task["completed_at"] else "", task.get("goal_title") or "独立待办", "、".join(task["tags"]), task["note"]])
+                writer.writerow([
+                    self._csv_cell(task["title"]),
+                    "已完成",
+                    category_label(task["category"]),
+                    "高" if task["priority"] == "high" else "普通",
+                    task.get("planned_date") or "",
+                    task["completed_at"][:10] if task["completed_at"] else "",
+                    self._csv_cell(task.get("goal_title") or "独立待办"),
+                    self._csv_cell("、".join(task["tags"])),
+                    self._csv_cell(task["note"]),
+                ])
 
     def import_json(self, path: str | Path) -> None:
         payload = json.loads(Path(path).read_text(encoding="utf-8"))
         if not isinstance(payload, dict):
             raise ValueError("备份结构不正确")
+        if payload.get("app") not in (None, "piggyplan"):
+            raise ValueError("这不是 PiggyPlan 的备份文件")
+        version = payload.get("version", 1)
+        if not isinstance(version, int) or isinstance(version, bool) or version > 1:
+            raise ValueError("备份版本过新，请先升级软件再导入")
         data = payload.get("data", payload)
         if not isinstance(data, dict) or not isinstance(data.get("tasks"), list) or not isinstance(data.get("goals"), list):
             raise ValueError("备份结构不正确")
@@ -646,7 +669,10 @@ class Database:
 
     def clear_all(self) -> None:
         with self.conn:
-            self.conn.executescript("DELETE FROM task_tags; DELETE FROM tags; DELETE FROM subtasks; DELETE FROM task_plan_history; DELETE FROM tasks; DELETE FROM goals; DELETE FROM task_templates;")
+            # 不能换成 executescript：它会先隐式提交并让每条语句各自落地，
+            # 中途失败就无法整体回滚。
+            for table in ("task_tags", "tags", "subtasks", "task_plan_history", "tasks", "goals", "task_templates"):
+                self.conn.execute(f"DELETE FROM {table}")
 
     def seed_demo(self) -> None:
         product = self.create_goal("完成产品季度复盘", "把用户反馈、数据和下一步行动整理成一份能推动决策的复盘。", "work", "high", offset_date(24))

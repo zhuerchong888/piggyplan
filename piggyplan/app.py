@@ -17,7 +17,7 @@ from .assets import RAW
 from .ui.shape import round_rect
 from .ui.widgets import Card, PillButton
 from .database import Database
-from .runtime.paths import app_backup_dir, app_data_dir, app_log_dir, log_event
+from .runtime.paths import app_data_dir, app_log_dir, log_event
 from .runtime.windows_integration import WindowsIntegration
 from .util import date_text, display_hotkey, normalize_hotkey, set_windows_autostart, today_key, today_text
 
@@ -378,7 +378,7 @@ class PiggyPlanApp(
         self.on_close()
 
     def create_daily_backup(self) -> None:
-        """Keep one SQLite snapshot per day and retain the latest 14 snapshots."""
+        """Daily snapshots: keep 14; import/clear safety snapshots: keep 10."""
 
         try:
             folder = self.db.path.parent / "backups"
@@ -386,8 +386,11 @@ class PiggyPlanApp(
             destination = folder / f"{date.today().isoformat()}.db"
             if not destination.exists():
                 self.db.backup_database(destination)
-            snapshots = sorted(folder.glob("*.db"), key=lambda item: item.stat().st_mtime, reverse=True)
-            for old in snapshots[14:]:
+            daily = sorted(folder.glob("????-??-??.db"), key=lambda item: item.stat().st_mtime, reverse=True)
+            for old in daily[14:]:
+                old.unlink()
+            safety = sorted(folder.glob("before-*.db"), key=lambda item: item.stat().st_mtime, reverse=True)
+            for old in safety[10:]:
                 old.unlink()
         except Exception as error:
             log_event("daily backup failed", error)

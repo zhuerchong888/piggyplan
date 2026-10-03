@@ -161,11 +161,13 @@ class PrimitivesMixin:
         ordered.insert(insert_at, task_id)
         dragged = self.db.get_task(task_id)
         target = self.db.get_task(target_task_id) if target_task_id else (self.db.get_task(ordered[-2]) if len(ordered) > 1 else None)
+        reprioritized = False
         if dragged and target and dragged["priority"] != target["priority"]:
             self.db.update_task(task_id, {"priority": target["priority"]})
+            reprioritized = True
         self.db.reorder_tasks(ordered)
         self.render()
-        self.show_toast("任务顺序已更新")
+        self.show_toast("任务顺序已更新，优先级已跟随调整" if reprioritized else "任务顺序已更新")
 
     def _bind_right_click(self, widget: tk.Misc, task_id: str) -> None:
         widget.bind("<Button-3>", lambda event, tid=task_id: self.open_context_menu(tid, event))

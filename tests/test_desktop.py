@@ -3,7 +3,6 @@ from pathlib import Path
 import tempfile
 import unittest
 import time
-from unittest.mock import patch
 from piggyplan.util import today_key, offset_date
 
 import piggyplan_desktop
@@ -23,8 +22,6 @@ class DesktopTests(unittest.TestCase):
         self.database.set_setting('startup_page', 'all')
         for index in range(28):
             self.database.create_task(f'待办 {index}', category='life' if index == 0 else 'work')
-        self.backups = patch('piggyplan.app.app_backup_dir', return_value=Path(self.temp.name) / 'backups')
-        self.backups.start()
         self.app = piggyplan_desktop.PiggyPlanApp(database=self.database)
         self.app.withdraw()
         self.app.update()
@@ -32,7 +29,6 @@ class DesktopTests(unittest.TestCase):
     def tearDown(self):
         self.app._exiting = True
         self.app.on_close()
-        self.backups.stop()
         self.temp.cleanup()
 
     def test_legacy_theme_is_migrated_to_pink(self):

@@ -27,7 +27,7 @@ class SingleInstance:
             log_event("single-instance mutex could not be created")
             return True
         self.handle = int(handle)
-        if kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+        if ctypes.get_last_error() == 183:  # ERROR_ALREADY_EXISTS
             kernel32.CloseHandle(ctypes.c_void_p(self.handle))
             self.handle = None
             return False

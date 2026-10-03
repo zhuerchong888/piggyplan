@@ -22,35 +22,6 @@ def today_text() -> str:
     return date_text(today_key(), long=True)
 
 
-def app_backup_dir() -> Path:
-    return app_data_dir() / "backups"
-
-
-def app_log_dir() -> Path:
-    return app_data_dir() / "logs"
-
-
-def log_event(message: str, error: BaseException | None = None) -> None:
-    """Write technical diagnostics without recording task content."""
-
-    try:
-        folder = app_log_dir()
-        folder.mkdir(parents=True, exist_ok=True)
-        path = folder / "piggyplan.log"
-        if path.exists() and path.stat().st_size > 1024 * 1024:
-            old = folder / "piggyplan.log.1"
-            if old.exists():
-                old.unlink()
-            path.replace(old)
-        with path.open("a", encoding="utf-8") as handle:
-            handle.write(f"{now_iso()} {message}\n")
-            if error:
-                handle.write("".join(traceback.format_exception(type(error), error, error.__traceback__)))
-    except OSError:
-        # Logging must never prevent the application from opening.
-        pass
-
-
 def normalize_hotkey(value: str | None) -> str | None:
     """Normalize a user-entered hotkey to a small Windows-friendly grammar."""
 
@@ -65,7 +36,7 @@ def normalize_hotkey(value: str | None) -> str | None:
     key = parts[-1]
     if key.startswith("f") and key[1:].isdigit() and 1 <= int(key[1:]) <= 24:
         pass
-    elif len(key) == 1 and key.isalnum():
+    elif len(key) == 1 and key.isascii() and key.isalnum():
         pass
     elif key in {"space", "insert", "delete", "home", "end", "pageup", "pagedown", "left", "right", "up", "down"}:
         pass

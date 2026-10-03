@@ -79,6 +79,7 @@ class WindowsIntegration:
     WM_HOTKEY = 0x0312
     WM_LBUTTONUP = 0x0202
     WM_RBUTTONUP = 0x0205
+    WM_TASKBARCREATED = 0x0000  # _setup 里用 RegisterWindowMessageW 取真实值
     NIM_ADD = 0x00000000
     NIM_DELETE = 0x00000002
     NIF_MESSAGE = 0x00000001
@@ -150,6 +151,10 @@ class WindowsIntegration:
         self.user32.RegisterHotKey.restype = wintypes.BOOL
         self.user32.UnregisterHotKey.argtypes = [wintypes.HWND, ctypes.c_int]
         self.user32.GetCursorPos.argtypes = [ctypes.POINTER(ctypes.c_long * 2)]
+        self.user32.RegisterWindowMessageW.argtypes = [wintypes.LPCWSTR]
+        self.user32.RegisterWindowMessageW.restype = wintypes.UINT
+        # Explorer 重启后会广播 TaskbarCreated，托盘图标需要重新注册。
+        self.WM_TASKBARCREATED = self.user32.RegisterWindowMessageW("TaskbarCreated")
 
         self._wnd_proc = _WNDPROC(self._window_proc)
         instance = self.kernel32.GetModuleHandleW(None)
@@ -173,7 +178,11 @@ class WindowsIntegration:
         self.app.after(50, self._pump_messages)
 
     def _window_proc(self, hwnd, message, wparam, lparam):
-        if message == self.WM_HOTKEY and int(wparam) == self.HOTKEY_ID:
+        if message == self.WM_TASKBARCREATED and self.hwnd:
+            self._add_tray_icon()
+            if not self.tray_available:
+                self.app.after(3000, self._add_tray_icon)
+        elif message == self.WM_HOTKEY and int(wparam) == self.HOTKEY_ID:
             self.app.after_idle(self.app.open_quick_add)
         elif message == self.WM_TRAYICON:
             event = int(lparam) & 0xFFFF

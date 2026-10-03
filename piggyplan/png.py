@@ -24,6 +24,7 @@ def decode(data: bytes) -> tuple[int, int, bytearray]:
         body = data[offset + 8 : offset + 8 + length]
         if kind == b"IHDR":
             width, height, depth, color_type = struct.unpack(">IIBB", body[:10])
+            assert len(body) < 13 or body[12] == 0, "不支持隔行 PNG"
         elif kind == b"PLTE":
             palette = body
         elif kind == b"IDAT":

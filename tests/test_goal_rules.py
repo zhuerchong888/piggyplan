@@ -234,6 +234,39 @@ class GoalDeletionRulesTests(unittest.TestCase):
             self.assertEqual(db.plan_stats("2026-10-02", "2026-10-02"),
                              {"total": 1, "on_time": 1, "rate": 100})
 
+    def test_early_completion_counts_as_on_time(self):
+        with self.database_case() as (db, goal_id):
+            task_id = db.create_task("提前完成", planned_date="2026-10-03", goal_id=goal_id)
+            db.toggle_task(task_id)
+            history = self.history(db, task_id)
+            self.assertEqual(history[0]["became_due"], 0)
+            self.assertEqual(history[0]["fulfilled_on_time"], 1)
+            self.assertEqual(db.plan_stats("2026-10-03", "2026-10-03"),
+                             {"total": 1, "on_time": 1, "rate": 100})
+            db.toggle_task(task_id)
+            history = self.history(db, task_id)
+            self.assertEqual(history[0]["became_due"], 0)
+            self.assertIsNone(history[0]["fulfilled_on_time"])
+            self.assertEqual(db.plan_stats("2026-10-03", "2026-10-03"),
+                             {"total": 0, "on_time": 0, "rate": 0})
+
+    def test_clear_all_rolls_back_as_one_transaction(self):
+        with self.database_case() as (db, goal_id):
+            task_id = db.create_task("保留待办", planned_date="2026-10-02", goal_id=goal_id, tags=["标签"], subtasks=["步骤"])
+            before_task = db.get_task(task_id)
+            before_goal = db.get_goal(goal_id)
+            before_history = self.history(db, task_id)
+            db.conn.execute("""CREATE TEMP TRIGGER reject_goal_clear
+                BEFORE DELETE ON goals BEGIN
+                SELECT RAISE(ABORT, 'injected clear failure'); END""")
+            db.conn.commit()
+            with self.assertRaisesRegex(sqlite3.IntegrityError, "injected clear failure"):
+                db.clear_all()
+            self.assertEqual(db.get_task(task_id), before_task)
+            self.assertEqual(db.get_goal(goal_id), before_goal)
+            self.assertEqual(self.history(db, task_id), before_history)
+            self.assertFalse(db.conn.in_transaction)
+
 
 if __name__ == "__main__":
     unittest.main()
